@@ -5,6 +5,7 @@
 *.mod
 *.o
 ## Data files
+*fort.*
 *.dat
 ## Swap files
 *.sw*
