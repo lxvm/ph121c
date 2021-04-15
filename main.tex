@@ -1,0 +1,67 @@
+\documentclass{article}
+\linespread{1.075}
+\usepackage{times}
+
+\usepackage{listings}
+\lstset{
+    basicstyle=\ttfamily\footnotesize,
+    numbers=left,
+    frame=single,
+}
+
+\usepackage{hyperref}
+\hypersetup{
+    colorlinks=true,
+    urlcolor=red,
+}
+
+\usepackage{graphic}
+\graphicspath{ {./gnuplot/plots} }
+
+\begin{document}
+
+{\centering
+
+Ph 121c
+
+Assignment 1
+
+Lorenzo Van Munoz
+
+\today
+
+}
+
+\newpage
+
+I want to start by explaining the work I've done to setup my computer for
+the computational tasks we will explore in this course.
+I've spent a fair portion of the weekend setting up the computing resources I
+will need and thought I should at least provide and overview of my computing
+tools and environment.
+\par
+
+My personal computer is a Dell laptop, model xps 15 9570, which is currently
+in a dual-boot configuration of Windows 10 (education) and Debian 11 (bullseye).
+Debian is one of the most popular, free, and well-supported Linux
+distributions, so I decided I will use it to do my work for this class because
+of the prevalence of Linux in scientific computing
+(for example, at \href{https://www.nas.nasa.gov/hecc/}{NASA}).
+\par
+
+The next major components are my computing tools.
+Since my laptop has an intel core i7 processor, I decided by best options for
+performance would be to use the proprietary compilers for the chip.
+(Intel freely distributes its oneAPI toolkit
+\href{https://software.intel.com/content/www/us/en/develop/articles/free-intel-software-developer-tools.html}{here}.)
+I installed the base toolkit and HPC toolkit with an interest in using libmkl,
+intel-python, ifort, and intel's profilers.
+\par
+
+A very high level summary of my computer environment and dependencies used for
+the computation and visualization tasks in the assignment is the following:
+
+\lstinputlisting{versions.log}
+
+\end{document}
+
