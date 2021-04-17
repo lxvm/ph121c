@@ -1,3 +1,5 @@
+## Testing directory
+*playground/
 ## Gnuplot image outputs
 *.png
 ## Compiled fortran binaries and module files

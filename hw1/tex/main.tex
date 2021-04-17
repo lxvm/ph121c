@@ -18,7 +18,7 @@
 }
 
 \usepackage{graphicx}
-\graphicspath{ {./gnuplot/plots} }
+\graphicspath{ {../gnuplot/plots} }
 
 \begin{document}
 
@@ -42,16 +42,15 @@ All of my code follows:
 \newpage
 
 {\bf \noindent
-Contents of dense_8_10_12.f90 and dense_14.f90
+Contents of dense\_8\_10\_12.f90 and dense\_14.f90
 }
 
-Note: I had to split the code for this problem into parts
-for $L \in \{8, 10, 12\}$ and $L=14$ otherwise
-I had segfault, or memory allocation errors.
+Note: I split $L \in \{8, 10, 12\}$ and $L=14$ otherwise
+I had segfault/malloc errors.
 
-\lstinputlisting[language=Fortran]{fortran/dense_8_10_12.f90}
+\lstinputlisting[language=Fortran]{../fortran/dense_8_10_12.f90}
 
-\lstinputlisting[language=Fortran]{fortran/dense_14.f90}
+\lstinputlisting[language=Fortran]{../fortran/dense_14.f90}
 
 \newpage
 
@@ -59,7 +58,7 @@ I had segfault, or memory allocation errors.
 Contents of tfim.f90
 }
 
-\lstinputlisting[language=Fortran]{fortran/tfim.f90}
+\lstinputlisting[language=Fortran]{../fortran/tfim.f90}
 
 \newpage
 
@@ -67,7 +66,7 @@ Contents of tfim.f90
 Contents of lanczos.f90
 }
 
-\lstinputlisting[language=Fortran]{fortran/lanczos.f90}
+\lstinputlisting[language=Fortran]{../fortran/lanczos.f90}
 
 \newpage
 
@@ -75,7 +74,7 @@ Contents of lanczos.f90
 Computing environment
 }
 
-\lstinputlisting{versions.log}
+\lstinputlisting{include/versions.txt}
 
 
 {\bf \noindent
@@ -83,7 +82,7 @@ Fortran compiler invocations
 }
 
 \begin{lstlisting}
-$ cd HW1/fortran
+$ cd hw1/fortran
 $ ifx -c tfim.f90 lanczos.f90
 $ ifx -qmkl tfim.o dense_8_10_12.f90 -o bin/dense_8_10_12.out -lmkl_lapack95_lp64
 $ ifx -qmkl tfim.o dense_14.f90 -o bin/dense_14.out -lmkl_lapack95_lp64
