@@ -1,16 +1,16 @@
-program dense_14
+program dense_ed
     use lapack95
-    use tfim
+    use tfim_dense
     implicit none
 
-    integer, dimension (1), parameter     :: L = (/ 14 /)
+    integer, dimension (3), parameter     :: L = (/ 8, 10, 12 /)
     real,    dimension (7), parameter     :: h = (/ 0.0, 0.1, 0.7, 1.0, 7.0, 10.0, 100.0 /)
     real,    dimension (2**L(size(L)), 2*size(h))     :: evals
     real,    dimension (2**L(size(L)), 2**L(size(L))) :: Ham
     real time_beg, time_end
     integer i, j, k, info
 
-    open (1, file='data/dense_14.dat')
+    open (1, file='data/dense_8_10_12.dat')
     do i = 1, size(L)
         evals = 0
         Ham   = 0
@@ -19,14 +19,14 @@ program dense_14
         do j = 1, size(h)
             ! open bc
             call cpu_time(time_beg)
-            call H_dense_open(L(i), h(j), Ham(:2**L(i), :2**L(i)))
+            call H_open_vec(L(i), h(j), Ham(:2**L(i), :2**L(i)))
             call syev(Ham(:2**L(i), :2**L(i)), evals(:2**L(i), 2*j-1), info=info)
             call cpu_time(time_end)
             print *, time_end - time_beg, 'seconds to run L=', L(i), 'with h=', h(j), 'open'
             if (info /= 0) print *, 'did not converge'
             ! closed bc
             call cpu_time(time_beg)
-            call H_dense_closed(L(i), h(j), Ham(:2**L(i), :2**L(i)))
+            call H_closed_vec(L(i), h(j), Ham(:2**L(i), :2**L(i)))
             call syev(Ham(:2**L(i), :2**L(i)), evals(:2**L(i), 2*j), info=info)
             call cpu_time(time_end)
             print *, time_end - time_beg, 'seconds to run L=', L(i), 'with h=', h(j), 'closed'
@@ -47,4 +47,4 @@ program dense_14
     end do
     close (1)
 
-end program dense_14
+end program dense_ed

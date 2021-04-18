@@ -1,60 +1,19 @@
-!include
-module tfim
-    !use
+! This module creates dense TFIM Hamiltonians
+
+module tfim_dense
     implicit none
 
     private
-    public save_matrix,  print_matrix,    &
-           H_dense_kron_open, H_dense_kron_closed,  &
-           H_vec_closed, H_vec_open,      &
-           H_dense_closed,     H_dense_open,          &
-           pack_matrix
-
+    public H_open_kron,  H_closed_kron,  &
+           H_vec_closed, H_vec_open,     &
+           H_closed_vec, H_open_vec
+           
 contains
 
-    subroutine save_matrix (M)
-        real, dimension (:, :), intent (in) :: M
-        integer i, j
-        ! use default file name fort.1
-        open (1)
-        do i = 1, size(M, 1)
-            do j = 1, size(M, 2)
-                write (1, '(f8.5, " ")', advance='no') M(i, j)
-            end do
-            write (1, '(a)')
-        end do
-        close (1)
-    end subroutine save_matrix
-
-    subroutine print_matrix (M)
-        real, dimension (:, :), intent (in) :: M
-        integer i, j
-        do i = 1, size(M, 1)
-            do j = 1, size(M, 2)
-                write (*, '(f8.5, " ")', advance='no') M(i, j)
-            end do
-            write (*, '(a)')
-        end do
-    end subroutine print_matrix
-
-    function pack_matrix (M) result (A)
-        ! This packs a real symmetric matrix's
-        ! upper diagonal for use in lapack routines
-        real, dimension (:, :), intent (in) :: M
-        real, dimension (size(M, 1) + size(M, 2) * (size(M, 2) - 1) / 2) :: A
-        integer i, j
-
-        if (size(M, 1) /= size(M, 2)) stop 'matrix not square'
-        A = 0
-        do j = 1, size(M, 2)
-            do i = 1, j
-                A(i + j * (j - 1) / 2) = M(i, j)
-            end do
-        end do
-    end function pack_matrix
-
     subroutine def_matrices (id, sz, sx)
-        real, dimension (2, 2), intent (inout) :: id, sz, sx
+        ! Define the identity and Pauli z and x matrices
+        real, dimension (2, 2), intent (out) :: id, sz, sx
+
         id(:, 1) = (/ 1 , 0 /)
         id(:, 2) = (/ 0 , 1 /)
         sz(:, 1) = (/ 1 , 0 /)
@@ -63,7 +22,9 @@ contains
         sx(:, 2) = (/ 1 , 0 /)
     end subroutine def_matrices
 
+
     function kron (A, B) result (C)
+        ! Get the Kronecker product of two matrices
         real, dimension (:, :), intent (in)       :: A, B
         real, dimension (size(A, 1) * size(B, 1), &
                          size(A, 2) * size(B, 2)) :: C
@@ -80,35 +41,42 @@ contains
         end do         
     end function kron
 
-    recursive function l_Nkron (n, A, B) result (C)
-        ! take left-handed kronecker product
+
+    recursive function kron_left (n, A, B) result (C)
+        ! Take left-handed Kronecker product
         ! of A with B n times: A (*) ... (*) A (*) B
         integer, intent (in) :: n
         real, dimension (:, :), intent (in)       :: A, B
         real, dimension ((size(A, 1) ** n) * size(B, 1), &
                          (size(A, 2) ** n) * size(B, 2)) :: C
+
         if (n >= 1) then
-            C = l_Nkron(n-1, A, kron(A, B))
+            C = kron_left(n-1, A, kron(A, B))
         else
             C = B
         end if
-    end function l_Nkron
+    end function kron_left
+
     
-    recursive function r_Nkron (A, B, n) result (C)
-        ! take right-handed kronecker product
+    recursive function kron_right (A, B, n) result (C)
+        ! Take right-handed Kronecker product
         ! of A with B n times: A (*) B (*) ... (*) B
         integer, intent (in) :: n
         real, dimension (:, :), intent (in)       :: A, B
         real, dimension (size(A, 1) * (size(B, 1) ** n), &
                          size(A, 2) * (size(B, 2) ** n)) :: C
+
         if (n >= 1) then
-            C = r_Nkron(kron(A, B), B,  n-1)
+            C = kron_right(kron(A, B), B,  n-1)
         else
             C = A
         end if
-    end function r_Nkron
+    end function kron_right
+
     
-    function H_dense_kron_open (L, h) result (Ham)
+    function H_open_kron (L, h) result (Ham)
+        ! Construct H using Kronecker product method
+        ! with open boundary conditions
         integer, intent (in) :: L
         real,    intent (in) :: h
         real, dimension (0:(2 ** L - 1), 0:(2 ** L - 1)) :: Ham
@@ -120,25 +88,30 @@ contains
         do i = 0, L-2
             Ham = Ham &
                 ! Contribution from sigma z (*) sigma z terms
-                - kron(l_Nkron(i, id, sz), r_Nkron(sz, id, L-1-(i+1))) &
+                - kron(kron_left(i, id, sz), kron_right(sz, id, L-1-(i+1))) &
                 ! Contribution from h * sigma x terms
-                - h * l_Nkron(i, id, r_Nkron(sx, id, L-(i+1)))
+                - h * kron_left(i, id, kron_right(sx, id, L-(i+1)))
         end do
-        Ham = Ham - h * l_Nkron(L-1, id, sx)
-    end function H_dense_kron_open
+        Ham = Ham - h * kron_left(L-1, id, sx)
+    end function H_open_kron
 
-    function H_dense_kron_closed (L, h) result (Ham)
+
+    function H_closed_kron (L, h) result (Ham)
+        ! Construct H using Kronecker product method
+        ! with closed boundary conditions
         integer, intent (in) :: L
         real,    intent (in) :: h
         real, dimension (0:(2 ** L - 1), 0:(2 ** L - 1)) :: Ham
         real, dimension (2, 2) :: id, sz, sx
 
         call def_matrices(id, sz, sx)
-        Ham = H_dense_kron_open(L, h) - kron(sz, l_Nkron(L-2, id, sz))
-    end function H_dense_kron_closed
+        Ham = H_open_kron(L, h) - kron(sz, kron_left(L-2, id, sz))
+    end function H_closed_kron
+
 
     function H_vec_open (L, h, v) result (w)
         ! calculate H|v> in computational basis
+        ! with open boundary conditions
         integer, intent (in) :: L
         real,    intent (in) :: h
         real, dimension (0:), intent (in) :: v
@@ -148,45 +121,51 @@ contains
         w = 0
         do i = 0, ((2**L)-1)
             if (v(i) /= 0) then
-                ! flip bits per sigma x
-                do j = 0, (L-1)
-                    w(ibchng(i, j)) = w(ibchng(i, j)) + h * v(i)
-                end do
-                ! sign changes from sigma z
                 do j = 0, (L-2)
+                    ! flip bits per sigma x
+                    w(ibchng(i, j)) = w(ibchng(i, j)) + h * v(i)
+                    ! sign changes from sigma z
                     if (xor(btest(i, j + 1), btest(i, j))) then
                         w(i) = w(i) - v(i)
                     else
                         w(i) = w(i) + v(i)
                     end if
                 end do
+                ! boundary cases
+                ! Last sigma x
+                w(ibchng(i, L-1)) = w(ibchng(i, L-1)) + h * v(i)
             end if
         end do
         w = -w
     end function H_vec_open
 
+
     function H_vec_closed (L, h, v) result (w)
         ! calculate H|v> in computational basis
+        ! with closed boundary conditions
         integer, intent (in) :: L
         real,    intent (in) :: h
         real, dimension (0:), intent (in) :: v
         real, dimension (0:((2**L)-1)) :: w
         integer i, j
+
         w = 0
         do i = 0, ((2**L)-1)
             if (v(i) /= 0) then
-                ! flip bits per sigma x
-                do j = 0, (L-1)
-                    w(ibchng(i, j)) = w(ibchng(i, j)) + h * v(i)
-                end do
-                ! sign changes from sigma z
                 do j = 0, (L-2)
+                    ! flip bits per sigma x
+                    w(ibchng(i, j)) = w(ibchng(i, j)) + h * v(i)
+                    ! sign changes from sigma z
                     if (xor(btest(i, j + 1), btest(i, j))) then
                         w(i) = w(i) - v(i)
                     else
                         w(i) = w(i) + v(i)
                     end if
                 end do
+                ! boundary cases
+                ! last sigma x
+                w(ibchng(i, L-1)) = w(ibchng(i, L-1)) + h * v(i)
+                ! closed boundary term sigma z
                 if (xor(btest(i, 0), btest(i, L - 1))) then
                     w(i) = w(i) - v(i)
                 else
@@ -197,7 +176,10 @@ contains
         w = -w
     end function H_vec_closed
 
-    subroutine H_dense_open (L, h, Ham)
+
+    subroutine H_open_vec (L, h, Ham)
+        ! Construct H using vector method
+        ! with open boundary conditions
         integer,                     intent (in   ) :: L
         real,                        intent (in   ) :: h
         real,    dimension (0:, 0:), intent (inout) :: Ham
@@ -212,9 +194,12 @@ contains
             v(i) = 1
             Ham(0:((2**L)-1), i) = H_vec_open(L, h, v)
         end do
-    end subroutine H_dense_open
+    end subroutine H_open_vec
 
-    subroutine H_dense_closed (L, h, Ham)
+
+    subroutine H_closed_vec (L, h, Ham)
+        ! Construct H using vector method
+        ! with closed boundary conditions
         integer,                     intent (in   ) :: L
         real,                        intent (in   ) :: h
         real,    dimension (0:, 0:), intent (inout) :: Ham
@@ -229,6 +214,6 @@ contains
             v(i) = 1
             Ham(0:((2**L)-1), i) = H_vec_closed(L, h, v)
         end do
-    end subroutine H_dense_closed
+    end subroutine H_closed_vec
 
-end module tfim
+end module tfim_dense

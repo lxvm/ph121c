@@ -1,0 +1,16 @@
+$ ifx tfim.o sparse_solvers.o sparse.f90 -o bin/sparse.out -qmkl -lmkl_lapack95_lp64
+/tmp/ifxxhy3aV.o: in function `MAIN__':
+sparse.f90:(.text+0x2cd): relocation truncated to fit: R_X86_64_32S against `.bss'
+/opt/intel/oneapi/compiler/2021.2.0/linux/compiler/lib/intel64_lin/libifcoremt.a(for_diags_intel.o): in function `for__this_image_number_or_zero':
+for_diags_intel.c:(.text+0x18a): relocation truncated to fit: R_X86_64_PC32 against `icaf_check_done.1284.0.12'
+for_diags_intel.c:(.text+0x199): relocation truncated to fit: R_X86_64_PC32 against `ptr_to_THIS_IMAGE'
+for_diags_intel.c:(.text+0x1a0): relocation truncated to fit: R_X86_64_PC32 against `ptr_to_ICAF_ABORT'
+for_diags_intel.c:(.text+0x1ab): relocation truncated to fit: R_X86_64_PC32 against `ptr_to_ICAF_PROB'
+for_diags_intel.c:(.text+0x1ba): relocation truncated to fit: R_X86_64_PC32 against `is_icaf_application'
+for_diags_intel.c:(.text+0x1c9): relocation truncated to fit: R_X86_64_PC32 against `this_image_number'
+for_diags_intel.c:(.text+0x1d1): relocation truncated to fit: R_X86_64_PC32 against `this_image_number'
+for_diags_intel.c:(.text+0x1d7): relocation truncated to fit: R_X86_64_PC32 against `icaf_check_done.1284.0.12'
+for_diags_intel.c:(.text+0x1e3): relocation truncated to fit: R_X86_64_PC32 against `this_image_number'
+/opt/intel/oneapi/compiler/2021.2.0/linux/compiler/lib/intel64_lin/libifcoremt.a(for_diags_intel.o): in function `for__io_return':
+for_diags_intel.c:(.text+0x90c): additional relocation overflows omitted from the output
+ld: failed to convert GOTPCREL relocation; relink with --no-relax
