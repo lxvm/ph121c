@@ -5,15 +5,15 @@ module tfim
 
     private
     public save_matrix,  print_matrix,    &
-           H_dense_open, H_dense_closed,  &
+           H_dense_kron_open, H_dense_kron_closed,  &
            H_vec_closed, H_vec_open,      &
-           H_closed,     H_open,          &
+           H_dense_closed,     H_dense_open,          &
            pack_matrix
 
 contains
 
     subroutine save_matrix (M)
-        real, dimension(:, :), intent (in) :: M
+        real, dimension (:, :), intent (in) :: M
         integer i, j
         ! use default file name fort.1
         open (1)
@@ -27,7 +27,7 @@ contains
     end subroutine save_matrix
 
     subroutine print_matrix (M)
-        real, dimension(:, :), intent (in) :: M
+        real, dimension (:, :), intent (in) :: M
         integer i, j
         do i = 1, size(M, 1)
             do j = 1, size(M, 2)
@@ -40,8 +40,8 @@ contains
     function pack_matrix (M) result (A)
         ! This packs a real symmetric matrix's
         ! upper diagonal for use in lapack routines
-        real, dimension(:, :), intent(in) :: M
-        real, dimension(size(M, 1) + size(M, 2) * (size(M, 2) - 1) / 2) :: A
+        real, dimension (:, :), intent (in) :: M
+        real, dimension (size(M, 1) + size(M, 2) * (size(M, 2) - 1) / 2) :: A
         integer i, j
 
         if (size(M, 1) /= size(M, 2)) stop 'matrix not square'
@@ -54,7 +54,7 @@ contains
     end function pack_matrix
 
     subroutine def_matrices (id, sz, sx)
-        real, dimension(2, 2), intent(inout) :: id, sz, sx
+        real, dimension (2, 2), intent (inout) :: id, sz, sx
         id(:, 1) = (/ 1 , 0 /)
         id(:, 2) = (/ 0 , 1 /)
         sz(:, 1) = (/ 1 , 0 /)
@@ -108,11 +108,11 @@ contains
         end if
     end function r_Nkron
     
-    function H_dense_open (L, h) result (Ham)
+    function H_dense_kron_open (L, h) result (Ham)
         integer, intent (in) :: L
         real,    intent (in) :: h
-        real, dimension(0:(2 ** L - 1), 0:(2 ** L - 1)) :: Ham
-        real, dimension(2, 2) :: id, sz, sx
+        real, dimension (0:(2 ** L - 1), 0:(2 ** L - 1)) :: Ham
+        real, dimension (2, 2) :: id, sz, sx
         integer i
 
         call def_matrices(id, sz, sx)
@@ -125,24 +125,24 @@ contains
                 - h * l_Nkron(i, id, r_Nkron(sx, id, L-(i+1)))
         end do
         Ham = Ham - h * l_Nkron(L-1, id, sx)
-    end function H_dense_open
+    end function H_dense_kron_open
 
-    function H_dense_closed (L, h) result (Ham)
+    function H_dense_kron_closed (L, h) result (Ham)
         integer, intent (in) :: L
         real,    intent (in) :: h
-        real, dimension(0:(2 ** L - 1), 0:(2 ** L - 1)) :: Ham
-        real, dimension(2, 2) :: id, sz, sx
+        real, dimension (0:(2 ** L - 1), 0:(2 ** L - 1)) :: Ham
+        real, dimension (2, 2) :: id, sz, sx
 
         call def_matrices(id, sz, sx)
-        Ham = H_dense_open(L, h) - kron(sz, l_Nkron(L-2, id, sz))
-    end function H_dense_closed
+        Ham = H_dense_kron_open(L, h) - kron(sz, l_Nkron(L-2, id, sz))
+    end function H_dense_kron_closed
 
     function H_vec_open (L, h, v) result (w)
-        ! calculate |Hv> in computational basis
+        ! calculate H|v> in computational basis
         integer, intent (in) :: L
         real,    intent (in) :: h
-        real, dimension(0:), intent (in) :: v
-        real, dimension(0:((2**L)-1)) :: w
+        real, dimension (0:), intent (in) :: v
+        real, dimension (0:((2**L)-1)) :: w
         integer i, j
 
         w = 0
@@ -166,11 +166,11 @@ contains
     end function H_vec_open
 
     function H_vec_closed (L, h, v) result (w)
-        ! calculate |Hv> in computational basis
+        ! calculate H|v> in computational basis
         integer, intent (in) :: L
         real,    intent (in) :: h
-        real, dimension(0:), intent (in) :: v
-        real, dimension(0:((2**L)-1)) :: w
+        real, dimension (0:), intent (in) :: v
+        real, dimension (0:((2**L)-1)) :: w
         integer i, j
         w = 0
         do i = 0, ((2**L)-1)
@@ -197,11 +197,11 @@ contains
         w = -w
     end function H_vec_closed
 
-    subroutine H_open (L, h, Ham)
-        integer,                    intent (in   ) :: L
-        real,                       intent (in   ) :: h
-        real,    dimension(0:, 0:), intent (inout) :: Ham
-        real,    dimension(0:(2**L-1))             :: v
+    subroutine H_dense_open (L, h, Ham)
+        integer,                     intent (in   ) :: L
+        real,                        intent (in   ) :: h
+        real,    dimension (0:, 0:), intent (inout) :: Ham
+        real,    dimension (0:(2**L-1))             :: v
         integer i
         
         if (size(Ham, 1) < 2**L) stop 'input ham too small'
@@ -212,13 +212,13 @@ contains
             v(i) = 1
             Ham(0:((2**L)-1), i) = H_vec_open(L, h, v)
         end do
-    end subroutine H_open
+    end subroutine H_dense_open
 
-    subroutine H_closed (L, h, Ham)
-        integer,                    intent (in   ) :: L
-        real,                       intent (in   ) :: h
-        real,    dimension(0:, 0:), intent (inout) :: Ham
-        real,    dimension(0:(2**L-1))             :: v
+    subroutine H_dense_closed (L, h, Ham)
+        integer,                     intent (in   ) :: L
+        real,                        intent (in   ) :: h
+        real,    dimension (0:, 0:), intent (inout) :: Ham
+        real,    dimension (0:(2**L-1))             :: v
         integer i
         
         if (size(Ham, 1) < 2**L) stop 'input ham too small'
@@ -229,6 +229,6 @@ contains
             v(i) = 1
             Ham(0:((2**L)-1), i) = H_vec_closed(L, h, v)
         end do
-    end subroutine H_closed
+    end subroutine H_dense_closed
 
 end module tfim

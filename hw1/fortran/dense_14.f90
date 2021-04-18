@@ -19,14 +19,14 @@ program dense_14
         do j = 1, size(h)
             ! open bc
             call cpu_time(time_beg)
-            call H_open(L(i), h(j), Ham(:2**L(i), :2**L(i)))
+            call H_dense_open(L(i), h(j), Ham(:2**L(i), :2**L(i)))
             call syev(Ham(:2**L(i), :2**L(i)), evals(:2**L(i), 2*j-1), info=info)
             call cpu_time(time_end)
             print *, time_end - time_beg, 'seconds to run L=', L(i), 'with h=', h(j), 'open'
             if (info /= 0) print *, 'did not converge'
             ! closed bc
             call cpu_time(time_beg)
-            call H_closed(L(i), h(j), Ham(:2**L(i), :2**L(i)))
+            call H_dense_closed(L(i), h(j), Ham(:2**L(i), :2**L(i)))
             call syev(Ham(:2**L(i), :2**L(i)), evals(:2**L(i), 2*j), info=info)
             call cpu_time(time_end)
             print *, time_end - time_beg, 'seconds to run L=', L(i), 'with h=', h(j), 'closed'

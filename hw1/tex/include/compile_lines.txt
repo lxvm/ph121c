@@ -1,3 +1,5 @@
-ifx -c tfim.f90 sparse_solvers.f90
+ifx -c tfim.f90
+ifx -qmkl -c sparse_solver.f90 -lmkl_lapack95_lp64
 ifx -qmkl tfim.o dense_8_10_12.f90 -o bin/dense_8_10_12.out -lmkl_lapack95_lp64
 ifx -qmkl tfim.o dense_14.f90 -o bin/dense_14.out -lmkl_lapack95_lp64
+ifx -qmkl tfim.o sparse_solvers.o sparse.f90 -o bin/sparse.out -lmkl_lapack95_lp64
