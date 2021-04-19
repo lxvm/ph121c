@@ -148,3 +148,81 @@
            ordering  72.429291 seconds to run L=24 with h=  0.3 closed
            ordering  70.169769 seconds to run L=24 with h=  1.0 closed
            ordering  70.212524 seconds to run L=24 with h=  1.7 closed
+        symmetry+++   0.000600 seconds to run L= 2 with h=  0.3 closed
+        symmetry---   0.000036 seconds to run L= 2 with h=  0.3 closed
+        symmetry+++   0.000013 seconds to run L= 2 with h=  1.0 closed
+        symmetry---   0.000013 seconds to run L= 2 with h=  1.0 closed
+        symmetry+++   0.000013 seconds to run L= 2 with h=  1.7 closed
+        symmetry---   0.000012 seconds to run L= 2 with h=  1.7 closed
+        symmetry+++   0.000018 seconds to run L= 4 with h=  0.3 closed
+        symmetry---   0.000042 seconds to run L= 4 with h=  0.3 closed
+        symmetry+++   0.000029 seconds to run L= 4 with h=  1.0 closed
+        symmetry---   0.000015 seconds to run L= 4 with h=  1.0 closed
+        symmetry+++   0.000015 seconds to run L= 4 with h=  1.7 closed
+        symmetry---   0.000016 seconds to run L= 4 with h=  1.7 closed
+        symmetry+++   0.000057 seconds to run L= 6 with h=  0.3 closed
+        symmetry---   0.000097 seconds to run L= 6 with h=  0.3 closed
+        symmetry+++   0.000083 seconds to run L= 6 with h=  1.0 closed
+        symmetry---   0.000086 seconds to run L= 6 with h=  1.0 closed
+        symmetry+++   0.000069 seconds to run L= 6 with h=  1.7 closed
+        symmetry---   0.000074 seconds to run L= 6 with h=  1.7 closed
+        symmetry+++   0.000259 seconds to run L= 8 with h=  0.3 closed
+        symmetry---   0.000170 seconds to run L= 8 with h=  0.3 closed
+        symmetry+++   0.000196 seconds to run L= 8 with h=  1.0 closed
+        symmetry---   0.000184 seconds to run L= 8 with h=  1.0 closed
+        symmetry+++   0.000226 seconds to run L= 8 with h=  1.7 closed
+        symmetry---   0.000203 seconds to run L= 8 with h=  1.7 closed
+        symmetry+++   0.001226 seconds to run L=10 with h=  0.3 closed
+        symmetry---   0.000720 seconds to run L=10 with h=  0.3 closed
+        symmetry+++   0.000822 seconds to run L=10 with h=  1.0 closed
+        symmetry---   0.000761 seconds to run L=10 with h=  1.0 closed
+        symmetry+++   0.000825 seconds to run L=10 with h=  1.7 closed
+        symmetry---   0.000787 seconds to run L=10 with h=  1.7 closed
+        symmetry+++   0.003553 seconds to run L=12 with h=  0.3 closed
+        symmetry---   0.002962 seconds to run L=12 with h=  0.3 closed
+        symmetry+++   0.003368 seconds to run L=12 with h=  1.0 closed
+        symmetry---   0.003381 seconds to run L=12 with h=  1.0 closed
+        symmetry+++   0.003412 seconds to run L=12 with h=  1.7 closed
+        symmetry---   0.003104 seconds to run L=12 with h=  1.7 closed
+        symmetry+++   0.015257 seconds to run L=14 with h=  0.3 closed
+        symmetry---   0.013151 seconds to run L=14 with h=  0.3 closed
+        symmetry+++   0.014956 seconds to run L=14 with h=  1.0 closed
+        symmetry---   0.012590 seconds to run L=14 with h=  1.0 closed
+        symmetry+++   0.014902 seconds to run L=14 with h=  1.7 closed
+        symmetry---   0.013074 seconds to run L=14 with h=  1.7 closed
+        symmetry+++   0.065681 seconds to run L=16 with h=  0.3 closed
+        symmetry---   0.055198 seconds to run L=16 with h=  0.3 closed
+        symmetry+++   0.064409 seconds to run L=16 with h=  1.0 closed
+        symmetry---   0.054630 seconds to run L=16 with h=  1.0 closed
+        symmetry+++   0.063712 seconds to run L=16 with h=  1.7 closed
+        symmetry---   0.054829 seconds to run L=16 with h=  1.7 closed
+        symmetry+++   0.274088 seconds to run L=18 with h=  0.3 closed
+        symmetry---   0.237218 seconds to run L=18 with h=  0.3 closed
+        symmetry+++   0.272613 seconds to run L=18 with h=  1.0 closed
+        symmetry---   0.235667 seconds to run L=18 with h=  1.0 closed
+        symmetry+++   0.272457 seconds to run L=18 with h=  1.7 closed
+        symmetry---   0.237065 seconds to run L=18 with h=  1.7 closed
+        symmetry+++   1.154626 seconds to run L=20 with h=  0.3 closed
+        symmetry---   1.014953 seconds to run L=20 with h=  0.3 closed
+        symmetry+++   1.147542 seconds to run L=20 with h=  1.0 closed
+        symmetry---   1.018056 seconds to run L=20 with h=  1.0 closed
+        symmetry+++   1.146184 seconds to run L=20 with h=  1.7 closed
+        symmetry---   1.020297 seconds to run L=20 with h=  1.7 closed
+        symmetry+++   5.696969 seconds to run L=22 with h=  0.3 closed
+        symmetry---   5.490715 seconds to run L=22 with h=  0.3 closed
+        symmetry+++   5.665977 seconds to run L=22 with h=  1.0 closed
+        symmetry---   5.501734 seconds to run L=22 with h=  1.0 closed
+        symmetry+++   5.669439 seconds to run L=22 with h=  1.7 closed
+        symmetry---   5.505997 seconds to run L=22 with h=  1.7 closed
+        symmetry+++  30.780281 seconds to run L=24 with h=  0.3 closed
+        symmetry---  30.389145 seconds to run L=24 with h=  0.3 closed
+        symmetry+++  30.658585 seconds to run L=24 with h=  1.0 closed
+        symmetry---  30.386108 seconds to run L=24 with h=  1.0 closed
+        symmetry+++  30.698151 seconds to run L=24 with h=  1.7 closed
+        symmetry---  30.405411 seconds to run L=24 with h=  1.7 closed
+        symmetry+++  67.502274 seconds to run L=25 with h=  0.3 closed
+        symmetry---  66.782593 seconds to run L=25 with h=  0.3 closed
+        symmetry+++  67.646210 seconds to run L=25 with h=  1.0 closed
+        symmetry---  71.440460 seconds to run L=25 with h=  1.0 closed
+        symmetry+++  68.712524 seconds to run L=25 with h=  1.7 closed
+        symmetry---  71.330994 seconds to run L=25 with h=  1.7 closed

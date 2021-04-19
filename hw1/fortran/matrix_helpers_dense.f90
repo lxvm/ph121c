@@ -15,7 +15,7 @@ contains
         open (1)
         do i = 1, size(M, 1)
             do j = 1, size(M, 2)
-                write (1, '(f8.5, " ")', advance='no') M(i, j)
+                write (1, '(f25.15, " ")', advance='no') M(i, j)
             end do
             write (1, '(a)')
         end do
@@ -28,7 +28,7 @@ contains
         integer i, j
         do i = 1, size(M, 1)
             do j = 1, size(M, 2)
-                write (*, '(f8.5, " ")', advance='no') M(i, j)
+                write (*, '(f8.3, " ")', advance='no') M(i, j)
             end do
             write (*, '(a)')
         end do

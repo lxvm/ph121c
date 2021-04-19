@@ -4,10 +4,13 @@ module tfim_dense
     implicit none
 
     private
-    public H_open_kron,  H_closed_kron,  &
-           H_vec_closed, H_vec_open,     &
-           H_closed_vec, H_open_vec,     &
-           corr_sigma_z, var_magnetization
+    public H_open_kron,    H_closed_kron,  &
+           H_vec_closed,   H_vec_open,     &
+           H_closed_vec,   H_open_vec,     &
+           Hxp_vec_closed, Hxm_vec_closed, &
+           corr_sigma_z, var_magnetization,&
+           kron, kron_left, kron_right,    &
+           def_matrices,   parity_diag
            
 contains
 
@@ -254,5 +257,111 @@ contains
             mag = mag + corr_sigma_z(0, i, v)
         end do
     end function var_magnetization
+
+
+    recursive function parity_diag (L) result (v)
+        ! Find the diagonal elements of U in x basis
+        integer, intent (in)  :: L
+        real, dimension(2**L) :: v
+
+        if (L /= 1) then
+            v(:(2**(L-1)))   = parity_diag(L-1)
+            v((2**(L-1)+1):) = -v(:(2**(L-1)))
+        else
+            v = (/ 1, -1 /)
+        end if
+    end function parity_diag
+    
+
+    function Hxp_vec_closed (L, h, v) result (w)
+        ! calculate H|v> in sigma x basis
+        ! in the +x symmetry sector (parity 0)
+        ! with closed boundary conditions
+        integer,                            intent (in) :: L
+        real,                               intent (in) :: h
+        real, dimension (0:((2**(L-1))-1)), intent (in) :: v
+        real, dimension (0:((2**(L-1))-1))              :: w
+        integer i, j, k, m
+
+        w = 0
+        do i = 0, ((2**(L-1)) - 1)
+            if (v(i) /= 0) then
+                ! index in full basis
+                k = (2*i + poppar(i))
+                do j = 0, (L-2)
+                    ! sign flip from sigma x in x basis
+                    if (btest(k, j)) then
+                        w(i) = w(i) - h * v(i)
+                    else
+                        w(i) = w(i) + h * v(i)
+                    end if
+                    ! spin flips from sigma z in x basis
+                    m = ibchng(ibchng(k, j), j+1)
+                    ! Compress full basis back to symmetry sector
+                    m = (m - mod(m, 2)) / 2
+                    w(m) = w(m) + v(i)
+                end do
+                ! boundary cases
+                ! last sigma x in x basis
+                if (btest(k, L-1)) then
+                    w(i) = w(i) - h * v(i)
+                else
+                    w(i) = w(i) + h * v(i)
+                end if
+                ! closed boundary term sigma z in x basis
+                m = ibchng(ibchng(k, L-1), 0)
+                ! Compress full basis back to symmetry sector
+                m = (m - mod(m, 2)) / 2
+                w(m) = w(m) + v(i)
+            end if
+        end do
+        w = -w
+    end function Hxp_vec_closed
+
+
+    function Hxm_vec_closed (L, h, v) result (w)
+        ! calculate H|v> in sigma x basis
+        ! in the -x symmetry sector (parity 1)
+        ! with closed boundary conditions
+        integer, intent (in) :: L
+        real,    intent (in) :: h
+        real, dimension (0:), intent (in)  :: v
+        real, dimension (0:((2**(L-1))-1)) :: w
+        integer i, j, k, m
+
+        w = 0
+        do i = 0, ((2**(L-1)) - 1)
+            if (v(i) /= 0) then
+                ! index in full basis
+                k = (2*i + (1 .xor. poppar(i)))
+                do j = 0, (L-2)
+                    ! sign flip from sigma x in x basis
+                    if (btest(k, j)) then
+                        w(i) = w(i) - h * v(i)
+                    else
+                        w(i) = w(i) + h * v(i)
+                    end if
+                    ! spin flips from sigma z in x basis
+                    m = ibchng(ibchng(k, j), j+1)
+                    ! Compress full basis back to symmetry sector
+                    m = (m - mod(m, 2)) / 2
+                    w(m) = w(m) + v(i)
+                end do
+                ! boundary cases
+                ! last sigma x in x basis
+                if (btest(k, L-1)) then
+                    w(i) = w(i) - h * v(i)
+                else
+                    w(i) = w(i) + h * v(i)
+                end if
+                ! closed boundary term sigma z in x basis
+                m = ibchng(ibchng(k, L-1), 0)
+                ! Compress full basis back to symmetry sector
+                m = (m - mod(m, 2)) / 2
+                w(m) = w(m) + v(i)
+            end if
+        end do
+        w = -w
+    end function Hxm_vec_closed
 
 end module tfim_dense

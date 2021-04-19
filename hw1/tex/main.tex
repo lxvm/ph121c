@@ -43,12 +43,12 @@ Dense ED
 }
 
 The Transverse Field Ising Model (TFIM) for a spin chain
-of length $L$ with parameter $h$ is given by
+of length $L$ with parameter $h$ (and zero indexed) is given by
 
 \begin{align}
-    \hat H = - \sum_{j=1}^{L-1} \hat \sigma^z_{j} \hat \sigma^z_{j+1} 
-            - \qty( \hat \sigma^z_{L}  \hat \sigma^z_{1} )
-            - h\sum_{j=1}^{L}  \hat \sigma^x_{j}.
+    \hat H = - \sum_{j=0}^{L-2} \hat \sigma^z_{j} \hat \sigma^z_{j+1} 
+            - \qty( \hat \sigma^z_{L-1}  \hat \sigma^z_{0} )
+            - h\sum_{j=0}^{L-1}  \hat \sigma^x_{j}.
 \end{align}
 
 I wrote two algorithms for initializing the dense Hamiltonian
@@ -70,8 +70,8 @@ Sparse ED
 
 Using intel MKL, I would have two routines for solving
 sparse eigenvalue problems for real matrices:
-{\tt ?feast_scsrev } for finding parts of a spectra, and
-{\tt mkl_sparse_?_ev } for finding the extremal eigenvalues.
+{\tt ?feast\_scsrev } for finding parts of a spectra, and
+{\tt mkl\_sparse\_?\_ev } for finding the extremal eigenvalues.
 The former routine requires a 3-array CSR format, and the latter
 requires the MKL Sparse BLAS CSR format, which is a 4-array format.
 I will probably implement a function to do that later in the course,
@@ -84,9 +84,9 @@ So I probably shouldn't call this section ``Sparse ED''.
 I am able to push my Lanczos implementation to sizes of $L = 23$
 for $m = 32$ eigenvalues, but not any more since $L = 24$ produces
 critical errors at compilation time because it would require
-$4 * 2^24 = 67,108,864$ bytes just to store one dense column of 
-single-precision floats of size $2^24$, and clearly I would need
-dozens of these for worker and output arrays, but I only have 16 Gb of RAM.
+$4 * 2^24 = 67,108,864$ bytes (B) just to store one dense column of 
+single-precision floats of size $2^{24}$, and clearly I would need
+dozens of these for worker and output arrays, but I only have 16 GB of RAM.
 
 Here is an example of such a catastrophic compilation for $L=24, m=32$
 \lstinputlisting{./include/catastrophic_compilation.txt}
@@ -142,7 +142,119 @@ Magnetic ordering
 Using Ising symmetry
 }
 
+To transfer from the $z$ basis, $\{\ket{\uparrow}, \ket{\downarrow} \}$,
+to the $x$ basis, $\{\ket{+}, \ket{-}\}$, use this operator
+\begin{align}
+    \hat T = \frac{1}{\sqrt{2}} \mqty( 1 & 1 \\ 1 & -1 ).
+\end{align}
+Notably, $T$ is its own inverse. 
+Rotating the Hamiltonian does the following:
+\begin{align}
+    \hat H_z \ket{\psi}_z
+        \to& \qty( \prod_j \hat T_j ) \hat H_z \ket{\psi}_z
+    \\
+    &= \qty( \prod_j \hat T_j ) \hat H_z \qty( \prod_j \hat T_j )
+        \qty( \prod_j \hat T_j ) \ket{\psi}_z 
+    \\
+    &= \hat H_x \ket{\psi}_x.
+\end{align}
+The form of $H_x$ is as follows:
+\begin{align}
+    \hat H_x =& \qty( \prod_j \hat T_j ) \hat H_z \qty( \prod_j \hat T_j )
+    \\
+    =& \qty( \prod_j \hat T_j )
+        \qty( -\sum_{j=0}^{L-2} \hat \sigma^z_{j} \hat \sigma^z_{j+1} 
+            - \hat \sigma^z_{L-1} \hat \sigma^z_{0}
+            -h \sum_{j=0}^{L-1} \hat \sigma^x_{j})
+        \qty( \prod_j \hat T_j )
+    \\
+    =& -\sum_{j=0}^{L-2} \hat T_j \hat \sigma^z_{j} \hat T_j
+                        \hat T_{j+1} \hat \sigma^z_{j+1} \hat T_{j+1}
+        - \hat T_{L-1} \hat \sigma^z_{L-1} \hat T_{L-1} 
+             \hat T_{0}  \hat \sigma^z_{0} \hat T_{0} 
+        -h \sum_{j=0}^{L-1}  \hat T_{j} \hat \sigma^x_{j} \hat T_{j}
+    \\
+    =& -\sum_{j=0}^{L-2} \hat \sigma^x_{j} \hat \sigma^x_{j+1}
+        - \hat \sigma^x_{L-1} \hat \sigma^x_{0} 
+        -h \sum_{j=0}^{L-1}  \hat \sigma^z_{j}.
+\end{align}
+This effectively interchanges the role of the sign-flip and spin-flip operators.
+(Sorry if the notation is confusing: the Hamiltonian is in the $x$ basis but
+the Pauli matrices still have the same matrix elements as in the $z$ basis)
 
+With this form of the Hamiltonian, we are one permutation away from expressing
+the disjoint symmetry sectors as a Hamiltonian in block diagonal form, with each
+block acting on its own parity sector.
+Recall the parity operator 
+\begin{align}
+    \hat U_z = \prod_j \hat \sigma_{j}^x
+\end{align}
+which in the x basis is diagonal:
+\begin{align}
+    \hat U_x = \prod_j \hat \sigma_{j}^z.
+\end{align}
+
+Notice how if we zero-index the basis states in the $x$ basis by integers,
+the parity operator is the same as the parity of the bit string of the integer
+if we take the bit parity of zero to correspond to + eigenstates 
+and the bit parity of one to correspond to - eigenstates.
+So in order to separate the $x$ basis, we just need an efficient way to flip
+bit strings that acts as a permutation of $\hat H_x$ to transform it into block
+diagonal form.
+
+Fix $L$ and let $\ket{+_j}, \ket{-_j}$ denote the $j$-th basis element of the
+$x$ basis in the + and - parity sectors, respectively 
+(Note there are $2^{L-1}$ states in each sector).
+Let's zero index these states and find a bit operator map that sends the index
+$j$ to the $k$th element of the computational $x$ basis, whose Hamiltonian,
+$\hat H_x$, we know.
+Note we also need the inverse permutation in order to correctly reassign the
+action of terms of the Hamiltonian.
+
+One way to do this is to calculate the diagonal entries of $\hat U_x$, 
+and to store an array which in the $j$-th index has the value $k$.
+The reverse map is obtained by placing $j$ in the $k$-th entry of the
+array which was the diagonal of $\hat U_x$
+The diagonal of $\hat U_x$ can be constructed recursively as follows:
+let $b_j$ be a bit string of length $2^j$, starting with $b_1 = \qty( 0, 1 )$,
+and obtain $b_{j+1}$ by concatentation: $b_{j+1} = \mqty( b_j, -b_j)$, where
+a minus sign denotes a bitwise flip operator.
+
+Note that the $k$th entry of $b_j$ is the bit string parity of $k$ (zero indexed).
+The first few bit strings are:
+\begin{align}
+    b_1 =& (0, 1)
+    \\
+    b_2 =& (0, 1, 1, 0)
+    \\
+    b_3 =& (0, 1, 1, 0, 1, 0, 0, 1)
+\end{align}
+which translates to the following diagonal entries of $\hat U_x$:
+\begin{align}
+    \qty(\hat U_x)^{L=1}_{ii} =& (1, -1)
+    \\
+    \qty(\hat U_x)^{L=2}_{ii} =& (1, -1, -1, 1)
+    \\
+    \qty(\hat U_x)^{L=3}_{ii} =& (1, -1, -1, 1, -1, 1, 1, -1).
+\end{align}
+Thus these indices provide all the bookkeeping necessary to take the symmetry sectors
+into a block diagonal form.
+
+If you study this experimentally, perhaps using the {\tt parity\_diag} function
+I wrote in the {\tt tfim\_dense} module, one finds that for states in $\mathcal H_+$
+symmetry sector, the efficient bit operator that does the bookkeeping from the $j$-th
++ parity state to the $k$-th $x$ basis state is $k = 2*j + \epsilon(j)$ where $\epsilon$
+is the bit string parity operator ($\epsilon(j) = 0$ if $j$ has an even number of 1's
+and $\epsilon(j) = 1$ if $j$ has an odd number of 1's).
+Likewise, for the $j$-th state in the - sector, it corresponds to $k = 2*j + (\epsilon^{-1}(j)$
+(where $\epsilon^{-1}(j) = \epsilon(j+1)$).
+The inverse operation in both cases is $j = (k - (k \% 2)) / 2$.
+In Fortran:
+\begin{lstlisting}[language=Fortran]
+k = (2*j + poppar(j))           ! from + sector to full basis
+k = (2*j + (1 .xor. poppar(j))  ! from - sector to full basis
+j = (k - mod(k, 2)) / 2         ! Inverse in both sectors
+\end{lstlisting}
 
 \newpage
 

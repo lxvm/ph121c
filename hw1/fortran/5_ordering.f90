@@ -1,6 +1,6 @@
 ! This is my answer to the ordering question
-! Here I use my lanczos implementation for largest system
-! and calculate the excitation gaps of low-energy states
+! Here I use my lanczos implementation to 
+! calculate the long-range order of the ground state
 
 program ordering
     use tfim_dense

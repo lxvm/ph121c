@@ -36,8 +36,9 @@ anything big.
 The compile lines placed all the binaries in `./bin/`, but you must
 execute them from `./` in order for the results to be saved in `./data/`
 
-Some data on runtimes is printed to the screen while running, but I saved it using
-for example `$ ./bin/1_dense_ed.out | tee -a ../data/runtimes.dat`
+Some data on runtimes is printed to the screen while running, but I saved it.
+For example `$ ./bin/1_dense_ed.out | tee -a ./data/runtimes.txt`.
+For me, these total to about 70 minutes.
 
 ## Analyzing
 
