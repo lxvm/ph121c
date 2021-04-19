@@ -12,7 +12,7 @@ program sparse_ed
 
     real,    dimension (2), parameter :: h = (/ 0.3, 1.7 /)
     integer, dimension (7), parameter :: L = (/ 8, 10, 12, 14, 16, 18, 20 /)
-    ! For each L, how many eigenpairs to compute
+    ! For each L, how many eigenvalues to compute
     integer, dimension (7), parameter :: m = (/ 2**8, 2**10, 32, 32, 32, 32, 32 /)
     real time_beg, time_end
     integer i, j
@@ -35,7 +35,7 @@ program sparse_ed
     end do
     write (1, '(a)')
     write (1, '(a)')
-    write (1, *) 'L     h bc        k        eigenvalue_lanczos'
+    write (1, *) 'L     h bc    k        eigenvalue_lanczos'
     do i = 3, size(L)
 	    do j = 1, size(h)
             call cpu_time(time_beg)
@@ -92,7 +92,7 @@ contains
         end if
         call syev(Ham, evals_dense, job)
         ! print eigenvalues
-        do k = 1, (2**L)
+        do k = 1, m(i)
             write (1, '(i2, " ")', advance='no') L
             write (1, '(f5.1, " ")', advance='no') h
             write (1, '(a2, " ")', advance='no') bc
@@ -122,11 +122,11 @@ contains
         else
             stop 'unknown bc'
         end if
-        do k = 1, (2**L)
+        do k = 1, m(i)
             write (1, '(i2, " ")', advance='no') L
             write (1, '(f5.1, " ")', advance='no') h
             write (1, '(a2, " ")', advance='no') bc
-            write (1, '(i8, " ")', advance='no') k
+            write (1, '(i4, " ")', advance='no') k
             write (1, '(f25.15, " ")') evals(k)
         end do
     end subroutine lanczos_extremes    

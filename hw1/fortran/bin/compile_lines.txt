@@ -1,3 +1,5 @@
 ifx -c tfim_dense.f90 solvers_dense.f90 -qmkl -lmkl_lapack95_lp64
 ifx tfim_dense.o solvers_dense.o 1_dense_ed.f90 -o bin/1_dense_ed.out -qmkl -lmkl_lapack95_lp64
 ifx tfim_dense.o solvers_dense.o 2_sparse_ed.f90 -o bin/2_sparse_ed.out -qmkl -lmkl_lapack95_lp64
+ifx tfim_dense.o solvers_dense.o 3_convergence.f90 -o bin/3_convergence.out -qmkl -lmkl_lapack95_lp64
+ifx tfim_dense.o solvers_dense.o 4_transition.f90 -o bin/4_transition.out -qmkl -lmkl_lapack95_lp64
