@@ -3,6 +3,7 @@
 
 module solvers_dense
     use lapack95
+    use tfim_dense
     implicit none
 
     private
@@ -10,7 +11,7 @@ module solvers_dense
 
 contains
 
-    subroutine my_lanczos (fHam, L, m, evals, evecs)
+    subroutine my_lanczos (fHam, L, m, evals, evecs, job)
         ! Use my Hamiltonian function to get some real eigenthings
         abstract interface
             function H_vec (v) result (w)
@@ -22,14 +23,13 @@ contains
         procedure (H_vec)                         :: fHam
         integer,                   intent (in   ) :: L, m
         real, dimension (m),       intent (  out) :: evals
-!        real, dimension (2**L, m), intent (  out) :: evecs
         real, dimension (2**L, m), intent (  out), target :: evecs
+        character, intent (in) :: job
         ! Local variables
         real, dimension (:, :), pointer :: V
-!        real, dimension (2**L, m) :: V
         real, dimension (m, 2)    :: T
         real, dimension (m, m)    :: T_evecs
-        real, dimension (2**L)    :: tmpa, tmpb
+        real, dimension (2**L)    :: tmp
         integer i, j
 
         if (m > 2**L) stop "requested too many eigenvectors"
@@ -43,17 +43,17 @@ contains
         V       = 0
         V(:, 1) = get_rand_vector(size(V, 1))
         ! initial iteration step
-        tmpa    = fHam(V(:, 1))
-        T(1, 1) = sum(tmpa * V(:, 1))
-        tmpb    = tmpa - T(1, 1) * V(:, 1)
+        tmp     = fHam(V(:, 1))
+        T(1, 1) = sum(tmp * V(:, 1))
+        tmp     = tmp - T(1, 1) * V(:, 1)
         
         ! general loop
         do j = 2, m
             ! Off-diagonal
-            T(j-1, 2) = sqrt(sum(tmpb * tmpb))
+            T(j-1, 2) = sqrt(sum(tmp * tmp))
             ! Choose new vector v
             if (T(j-1, 2) /= 0) then
-                V(:, j) = tmpb / T(j-1, 2)
+                V(:, j) = tmp / T(j-1, 2)
             else
                 ! Choose a new vector orthogonal to those in V
                 V(j, j) = 1
@@ -62,28 +62,31 @@ contains
                 end if
             end if
             ! Find transformation
-            tmpa    = fHam(V(:, j))
+            tmp     = fHam(V(:, j))
             ! Diagonal
-            T(j, 1) = sum(tmpa * V(:, j))
+            T(j, 1) = sum(tmp * V(:, j))
             ! Next iterate
-            tmpb    = tmpa - T(j, 1) * V(:, j) - T(j-1, 2) * V(:, j-1)
+            tmp     = tmp - T(j, 1) * V(:, j) - T(j-1, 2) * V(:, j-1)
         end do
 
         ! Diagonalize T (segfault on L=10, m=2**10  with evecs)
         evals = T(:, 1)
-        call stev(evals, T(:, 2), T_evecs)
-        ! increase the stack limit, otherwise this will cause segfault
-        evecs = matmul(V, T_evecs)
-        
+        if (job == 'N') then
+            call stev(evals, T(:, 2))
+        else if (job == 'V') then
+            ! increase the stack limit, otherwise this will cause segfault
+            call stev(evals, T(:, 2), T_evecs)
+            evecs = matmul(V, T_evecs)
+        end if
     end subroutine my_lanczos
 
 
     function get_rand_vector (n) result (v)
+        ! sample a vector of length n randomly on U[-.5, .5] and normalize it
         integer, intent (in) :: n
         real, dimension (n)  :: v
         integer i
         
-        ! generate randomly on U[0, 1]
         do i = 1, n
            call random_number(v(i))
         end do
