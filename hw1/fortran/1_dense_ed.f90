@@ -65,7 +65,7 @@ contains
         write (1, '(i2, " ")', advance='no') L
         write (1, '(f5.1, " ")', advance='no') h
         write (1, '(a2, " ")', advance='no') bc
-        write (1, '(f25.15, " ")') evals(1)
+        write (1, '(f25.15)') evals(1)
     end subroutine dense_ev
 
 end program dense_ed

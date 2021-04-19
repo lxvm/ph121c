@@ -37,7 +37,7 @@ program sparse_ed
     write (1, '(a)')
     write (1, *) 'L     h bc    k        eigenvalue_lanczos'
     do i = 3, size(L)
-	    do j = 1, size(h)
+        do j = 1, size(h)
             call cpu_time(time_beg)
             call lanczos_extremes(L(i), h(j), 'N', 'c')
             call cpu_time(time_end)
@@ -48,7 +48,7 @@ program sparse_ed
             call cpu_time(time_end)
             print '(a20, f10.6, g0, i2, g0, f5.1, g0)', 'sparse_ed_extreme ', &
                 time_end - time_beg, ' seconds to run L=', L(i), ' with h=', h(j), ' open'
-	    end do
+        end do
     end do
     write (1, '(a)')
     write (1, '(a)')    
@@ -98,7 +98,7 @@ contains
             write (1, '(a2, " ")', advance='no') bc
             write (1, '(i4, " ")', advance='no') k
             write (1, '(f25.15, " ")', advance='no') evals_lanczos(k)
-            write (1, '(f25.15, " ")') evals_dense(k)
+            write (1, '(f25.15)') evals_dense(k)
         end do
     end subroutine verify_lanczos_dense
 
@@ -127,7 +127,7 @@ contains
             write (1, '(f5.1, " ")', advance='no') h
             write (1, '(a2, " ")', advance='no') bc
             write (1, '(i4, " ")', advance='no') k
-            write (1, '(f25.15, " ")') evals(k)
+            write (1, '(f25.15)') evals(k)
         end do
     end subroutine lanczos_extremes    
 

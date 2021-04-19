@@ -6,7 +6,8 @@ module tfim_dense
     private
     public H_open_kron,  H_closed_kron,  &
            H_vec_closed, H_vec_open,     &
-           H_closed_vec, H_open_vec
+           H_closed_vec, H_open_vec,     &
+           corr_sigma_z, var_magnetization
            
 contains
 
@@ -215,5 +216,43 @@ contains
             Ham(0:((2**L)-1), i) = H_vec_closed(L, h, v)
         end do
     end subroutine H_closed_vec
+
+
+    function corr_sigma_z (i, j, v) result (corr)
+        ! Compute the correlation C^{zz} between sites i, j
+        ! This function is zero-indexed
+        integer,                intent (in) :: i, j
+        real,   dimension (0:), intent (in) :: v
+        real,   dimension (0:(size(v)-1))   :: w
+        real corr
+        integer k
+
+        w = 0
+        do k = 0, (size(v)-1)
+            if (v(k) /= 0) then
+                ! sign changes from sigma z
+                if (xor(btest(k, i), btest(k, j))) then
+                    w(k) = w(k) - v(k)
+                else
+                    w(k) = w(k) + v(k)
+                end if
+            end if
+        end do
+        corr = sum(w * v)
+    end function corr_sigma_z
+
+
+    function var_magnetization (L, v) result (mag)
+        ! Compute the magnetization variance of a spin chain per site
+        integer,                intent (in) :: L
+        real,   dimension (0:), intent (in) :: v
+        real mag
+        integer i
+
+        mag = 0
+        do i = 0, L-1
+            mag = mag + corr_sigma_z(0, i, v)
+        end do
+    end function var_magnetization
 
 end module tfim_dense

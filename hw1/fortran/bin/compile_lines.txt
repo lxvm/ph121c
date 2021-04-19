@@ -3,3 +3,6 @@ ifx tfim_dense.o solvers_dense.o 1_dense_ed.f90 -o bin/1_dense_ed.out -qmkl -lmk
 ifx tfim_dense.o solvers_dense.o 2_sparse_ed.f90 -o bin/2_sparse_ed.out -qmkl -lmkl_lapack95_lp64
 ifx tfim_dense.o solvers_dense.o 3_convergence.f90 -o bin/3_convergence.out -qmkl -lmkl_lapack95_lp64
 ifx tfim_dense.o solvers_dense.o 4_transition.f90 -o bin/4_transition.out -qmkl -lmkl_lapack95_lp64
+ifx tfim_dense.o solvers_dense.o 5_ordering.f90 -o bin/5_ordering.out -qmkl -lmkl_lapack95_lp64
+#ifx tfim_dense.o solvers_dense.o 6_symmetry.f90 -o bin/6_symmetry.out -qmkl -lmkl_lapack95_lp64
+

@@ -1,0 +1,150 @@
+           dense_ed   0.008055 seconds to run L= 8 with h=  0.0 open
+           dense_ed   0.002343 seconds to run L= 8 with h=  0.0 closed
+           dense_ed   0.010668 seconds to run L= 8 with h=  0.1 open
+           dense_ed   0.009455 seconds to run L= 8 with h=  0.1 closed
+           dense_ed   0.013182 seconds to run L= 8 with h=  0.7 open
+           dense_ed   0.009137 seconds to run L= 8 with h=  0.7 closed
+           dense_ed   0.010250 seconds to run L= 8 with h=  1.0 open
+           dense_ed   0.008973 seconds to run L= 8 with h=  1.0 closed
+           dense_ed   0.009198 seconds to run L= 8 with h=  7.0 open
+           dense_ed   0.008469 seconds to run L= 8 with h=  7.0 closed
+           dense_ed   0.009119 seconds to run L= 8 with h= 10.0 open
+           dense_ed   0.008334 seconds to run L= 8 with h= 10.0 closed
+           dense_ed   0.008477 seconds to run L= 8 with h=100.0 open
+           dense_ed   0.011205 seconds to run L= 8 with h=100.0 closed
+           dense_ed   0.088185 seconds to run L=10 with h=  0.0 open
+           dense_ed   0.069546 seconds to run L=10 with h=  0.0 closed
+           dense_ed   0.138420 seconds to run L=10 with h=  0.1 open
+           dense_ed   0.135604 seconds to run L=10 with h=  0.1 closed
+           dense_ed   0.149505 seconds to run L=10 with h=  0.7 open
+           dense_ed   0.143295 seconds to run L=10 with h=  0.7 closed
+           dense_ed   0.148790 seconds to run L=10 with h=  1.0 open
+           dense_ed   0.146071 seconds to run L=10 with h=  1.0 closed
+           dense_ed   0.142003 seconds to run L=10 with h=  7.0 open
+           dense_ed   0.134941 seconds to run L=10 with h=  7.0 closed
+           dense_ed   0.148498 seconds to run L=10 with h= 10.0 open
+           dense_ed   0.135696 seconds to run L=10 with h= 10.0 closed
+           dense_ed   0.136508 seconds to run L=10 with h=100.0 open
+           dense_ed   0.129934 seconds to run L=10 with h=100.0 closed
+           dense_ed   7.770774 seconds to run L=12 with h=  0.0 open
+           dense_ed   2.888734 seconds to run L=12 with h=  0.0 closed
+           dense_ed   4.387420 seconds to run L=12 with h=  0.1 open
+           dense_ed   4.352179 seconds to run L=12 with h=  0.1 closed
+           dense_ed   4.546753 seconds to run L=12 with h=  0.7 open
+           dense_ed   4.353161 seconds to run L=12 with h=  0.7 closed
+           dense_ed   4.407333 seconds to run L=12 with h=  1.0 open
+           dense_ed   4.350151 seconds to run L=12 with h=  1.0 closed
+           dense_ed   4.345058 seconds to run L=12 with h=  7.0 open
+           dense_ed   4.197350 seconds to run L=12 with h=  7.0 closed
+           dense_ed   4.372372 seconds to run L=12 with h=10.00 open
+           dense_ed   4.341438 seconds to run L=12 with h=10.00 closed
+           dense_ed   4.222137 seconds to run L=12 with h=100.0 open
+           dense_ed   4.282387 seconds to run L=12 with h=100.0 closed
+           dense_ed   109.4882 seconds to run L=14 with h=  0.0 open
+           dense_ed   115.7789 seconds to run L=14 with h=  0.0 closed
+           dense_ed   179.3932 seconds to run L=14 with h=  0.1 open
+           dense_ed   167.8083 seconds to run L=14 with h=  0.1 closed
+           dense_ed   170.4166 seconds to run L=14 with h=  0.7 open
+           dense_ed   161.4205 seconds to run L=14 with h=  0.7 closed
+           dense_ed   184.4828 seconds to run L=14 with h=  1.0 open
+           dense_ed   167.1367 seconds to run L=14 with h=  1.0 closed
+           dense_ed   190.6655 seconds to run L=14 with h=  7.0 open
+           dense_ed   179.9760 seconds to run L=14 with h=  7.0 closed
+           dense_ed   182.1862 seconds to run L=14 with h= 10.0 open
+           dense_ed   148.1481 seconds to run L=14 with h= 10.0 closed
+           dense_ed   160.1779 seconds to run L=14 with h=100.0 open
+           dense_ed   159.4221 seconds to run L=14 with h=100.0 closed
+   sparse_ed_verify   0.021783 seconds to run L= 8 with h=  0.3 open
+   sparse_ed_verify   0.029710 seconds to run L= 8 with h=  0.3 closed
+   sparse_ed_verify   0.028530 seconds to run L= 8 with h=  1.7 open
+   sparse_ed_verify   0.027095 seconds to run L= 8 with h=  1.7 closed
+   sparse_ed_verify   0.521363 seconds to run L=10 with h=  0.3 open
+   sparse_ed_verify   0.447436 seconds to run L=10 with h=  0.3 closed
+   sparse_ed_verify   0.533065 seconds to run L=10 with h=  1.7 open
+   sparse_ed_verify   0.453967 seconds to run L=10 with h=  1.7 closed
+  sparse_ed_extreme   0.118469 seconds to run L=12 with h=  0.3 closed
+  sparse_ed_extreme   0.112916 seconds to run L=12 with h=  0.3 open
+  sparse_ed_extreme   0.116213 seconds to run L=12 with h=  1.7 closed
+  sparse_ed_extreme   0.111524 seconds to run L=12 with h=  1.7 open
+  sparse_ed_extreme   0.514021 seconds to run L=14 with h=  0.3 closed
+  sparse_ed_extreme   0.193720 seconds to run L=14 with h=  0.3 open
+  sparse_ed_extreme   0.074966 seconds to run L=14 with h=  1.7 closed
+  sparse_ed_extreme   0.072724 seconds to run L=14 with h=  1.7 open
+  sparse_ed_extreme   0.306518 seconds to run L=16 with h=  0.3 closed
+  sparse_ed_extreme   0.301947 seconds to run L=16 with h=  0.3 open
+  sparse_ed_extreme   0.307610 seconds to run L=16 with h=  1.7 closed
+  sparse_ed_extreme   0.302983 seconds to run L=16 with h=  1.7 open
+  sparse_ed_extreme   1.265489 seconds to run L=18 with h=  0.3 closed
+  sparse_ed_extreme   1.248916 seconds to run L=18 with h=  0.3 open
+  sparse_ed_extreme   1.253878 seconds to run L=18 with h=  1.7 closed
+  sparse_ed_extreme   1.234580 seconds to run L=18 with h=  1.7 open
+  sparse_ed_extreme   5.206615 seconds to run L=20 with h=  0.3 closed
+  sparse_ed_extreme   5.146504 seconds to run L=20 with h=  0.3 open
+  sparse_ed_extreme   5.166521 seconds to run L=20 with h=  1.7 closed
+  sparse_ed_extreme   5.099291 seconds to run L=20 with h=  1.7 open
+        convergence   0.000800 seconds to run L= 8 with h=  0.3 closed
+        convergence   0.000278 seconds to run L= 8 with h=  0.3 open
+        convergence   0.000286 seconds to run L= 8 with h=  1.7 closed
+        convergence   0.000684 seconds to run L= 8 with h=  1.7 open
+        convergence   0.001339 seconds to run L=10 with h=  0.3 closed
+        convergence   0.001481 seconds to run L=10 with h=  0.3 open
+        convergence   0.001265 seconds to run L=10 with h=  1.7 closed
+        convergence   0.001554 seconds to run L=10 with h=  1.7 open
+        convergence   0.007912 seconds to run L=12 with h=  0.3 closed
+        convergence   0.006915 seconds to run L=12 with h=  0.3 open
+        convergence   0.007640 seconds to run L=12 with h=  1.7 closed
+        convergence   0.006870 seconds to run L=12 with h=  1.7 open
+        convergence   0.034450 seconds to run L=14 with h=  0.3 closed
+        convergence   0.032367 seconds to run L=14 with h=  0.3 open
+        convergence   0.033758 seconds to run L=14 with h=  1.7 closed
+        convergence   0.032401 seconds to run L=14 with h=  1.7 open
+        convergence   0.150143 seconds to run L=16 with h=  0.3 closed
+        convergence   0.139647 seconds to run L=16 with h=  0.3 open
+        convergence   0.146758 seconds to run L=16 with h=  1.7 closed
+        convergence   0.138946 seconds to run L=16 with h=  1.7 open
+        convergence   0.617788 seconds to run L=18 with h=  0.3 closed
+        convergence   0.590684 seconds to run L=18 with h=  0.3 open
+        convergence   0.612694 seconds to run L=18 with h=  1.7 closed
+        convergence   0.601241 seconds to run L=18 with h=  1.7 open
+        convergence   2.626316 seconds to run L=20 with h=  0.3 closed
+        convergence   2.559526 seconds to run L=20 with h=  0.3 open
+        convergence   2.614290 seconds to run L=20 with h=  1.7 closed
+        convergence   2.572377 seconds to run L=20 with h=  1.7 open
+        convergence  13.793206 seconds to run L=22 with h=  0.3 closed
+        convergence  13.312267 seconds to run L=22 with h=  0.3 open
+        convergence  13.725861 seconds to run L=22 with h=  1.7 closed
+        convergence  13.257050 seconds to run L=22 with h=  1.7 open
+        convergence  60.739464 seconds to run L=24 with h=  0.3 closed
+        convergence  58.666138 seconds to run L=24 with h=  0.3 open
+        convergence  59.902161 seconds to run L=24 with h=  1.7 closed
+        convergence  58.634903 seconds to run L=24 with h=  1.7 open
+         transition  70.493820 seconds to run L=24 with h=  0.3 closed
+         transition  69.832855 seconds to run L=24 with h=  0.5 closed
+         transition  69.815887 seconds to run L=24 with h=  0.7 closed
+         transition  69.882034 seconds to run L=24 with h=  0.9 closed
+         transition  69.951721 seconds to run L=24 with h=  1.0 closed
+         transition  70.085571 seconds to run L=24 with h=  1.1 closed
+         transition  69.451569 seconds to run L=24 with h=  1.3 closed
+         transition  70.107666 seconds to run L=24 with h=  1.5 closed
+         transition  69.848511 seconds to run L=24 with h=  1.7 closed
+           ordering   0.014100 seconds to run L=12 with h=  0.3 closed
+           ordering   0.009436 seconds to run L=12 with h=  1.0 closed
+           ordering   0.009962 seconds to run L=12 with h=  1.7 closed
+           ordering   0.042626 seconds to run L=14 with h=  0.3 closed
+           ordering   0.041690 seconds to run L=14 with h=  1.0 closed
+           ordering   0.041696 seconds to run L=14 with h=  1.7 closed
+           ordering   0.182941 seconds to run L=16 with h=  0.3 closed
+           ordering   0.183062 seconds to run L=16 with h=  1.0 closed
+           ordering   0.180844 seconds to run L=16 with h=  1.7 closed
+           ordering   0.775904 seconds to run L=18 with h=  0.3 closed
+           ordering   0.767587 seconds to run L=18 with h=  1.0 closed
+           ordering   0.773723 seconds to run L=18 with h=  1.7 closed
+           ordering   3.314305 seconds to run L=20 with h=  0.3 closed
+           ordering   3.367774 seconds to run L=20 with h=  1.0 closed
+           ordering   3.414808 seconds to run L=20 with h=  1.7 closed
+           ordering  17.051022 seconds to run L=22 with h=  0.3 closed
+           ordering  16.921904 seconds to run L=22 with h=  1.0 closed
+           ordering  16.932499 seconds to run L=22 with h=  1.7 closed
+           ordering  72.429291 seconds to run L=24 with h=  0.3 closed
+           ordering  70.169769 seconds to run L=24 with h=  1.0 closed
+           ordering  70.212524 seconds to run L=24 with h=  1.7 closed
