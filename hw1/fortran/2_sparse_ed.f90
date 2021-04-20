@@ -24,12 +24,12 @@ program sparse_ed
             call cpu_time(time_beg)
             call verify_lanczos_dense(L(i), h(j), 'N', 'o')
             call cpu_time(time_end)
-            print '(a20, f10.6, g0, i2, g0, f5.1, g0)', 'sparse_ed_verify ', &
+            print '(a20, f10.6, g0, i2, g0, f5.2, g0)', 'sparse_ed_verify ', &
                 time_end - time_beg, ' seconds to run L=', L(i), ' with h=', h(j), ' open'
             call cpu_time(time_beg)
             call verify_lanczos_dense(L(i), h(j), 'N', 'c')
             call cpu_time(time_end)
-            print '(a20, f10.6, g0, i2, g0, f5.1, g0)', 'sparse_ed_verify ', &
+            print '(a20, f10.6, g0, i2, g0, f5.2, g0)', 'sparse_ed_verify ', &
                 time_end - time_beg, ' seconds to run L=', L(i), ' with h=', h(j), ' closed'
         end do
     end do
@@ -41,12 +41,12 @@ program sparse_ed
             call cpu_time(time_beg)
             call lanczos_extremes(L(i), h(j), 'N', 'c')
             call cpu_time(time_end)
-            print '(a20, f10.6, g0, i2, g0, f5.1, g0)', 'sparse_ed_extreme ', &
+            print '(a20, f10.6, g0, i2, g0, f5.2, g0)', 'sparse_ed_extreme ', &
                 time_end - time_beg, ' seconds to run L=', L(i), ' with h=', h(j), ' closed'
             call cpu_time(time_beg)
             call lanczos_extremes(L(i), h(j), 'N', 'o')
             call cpu_time(time_end)
-            print '(a20, f10.6, g0, i2, g0, f5.1, g0)', 'sparse_ed_extreme ', &
+            print '(a20, f10.6, g0, i2, g0, f5.2, g0)', 'sparse_ed_extreme ', &
                 time_end - time_beg, ' seconds to run L=', L(i), ' with h=', h(j), ' open'
         end do
     end do
@@ -94,7 +94,7 @@ contains
         ! print eigenvalues
         do k = 1, m(i)
             write (1, '(i2, " ")', advance='no') L
-            write (1, '(f5.1, " ")', advance='no') h
+            write (1, '(f5.2, " ")', advance='no') h
             write (1, '(a2, " ")', advance='no') bc
             write (1, '(i4, " ")', advance='no') k
             write (1, '(f25.15, " ")', advance='no') evals_lanczos(k)
@@ -124,7 +124,7 @@ contains
         end if
         do k = 1, m(i)
             write (1, '(i2, " ")', advance='no') L
-            write (1, '(f5.1, " ")', advance='no') h
+            write (1, '(f5.2, " ")', advance='no') h
             write (1, '(a2, " ")', advance='no') bc
             write (1, '(i4, " ")', advance='no') k
             write (1, '(f25.15)') evals(k)

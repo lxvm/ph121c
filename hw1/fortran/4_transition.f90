@@ -21,7 +21,7 @@ program transition
             call cpu_time(time_beg)
             call lanczo_gs_gap(L(i), h(j), 'N', 'c')
             call cpu_time(time_end)
-            print '(a20, f10.6, g0, i2, g0, f5.1, g0)', 'transition ', &
+            print '(a20, f10.6, g0, i2, g0, f5.2, g0)', 'transition ', &
                 time_end - time_beg, ' seconds to run L=', L(i), ' with h=', h(j), ' closed'
         end do
     end do
@@ -59,7 +59,7 @@ contains
         ! I will only print the lowest 4 of 32
         do k = 1, 4
             write (1, '(i2, " ")', advance='no') L
-            write (1, '(f5.1, " ")', advance='no') h
+            write (1, '(f5.2, " ")', advance='no') h
             write (1, '(a2, " ")', advance='no') bc
             write (1, '(i1, " ")', advance='no') k
             write (1, '(f25.15)') evals(k)

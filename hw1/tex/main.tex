@@ -42,6 +42,10 @@ Lorenzo Van Munoz
 Dense ED
 }
 
+\subsection{
+Discussion
+}
+
 The Transverse Field Ising Model (TFIM) for a spin chain
 of length $L$ with parameter $h$ (and zero indexed) is given by
 
@@ -55,17 +59,58 @@ I wrote two algorithms for initializing the dense Hamiltonian
 corresponding to the TFIM: a direct construction by taking
 tensor products (implied in $\hat H$ above) and a direct construction
 for any vector by representing the Pauli operators
-as bitwise operations computational basis (in binary).
+as bitwise operations on a binary representation of the computational basis.
 
 Since the latter is less prone to memory allocation errors 
 (unlike the former, it does not need to repeatedly sum large matrices
-and does not use a recursive implementation) I was more comfortable
-using it and will present some of its preliminary results.
+and does not use a recursive implementation) I was more comfortable using it.
+
+\subsection{
+Results
+}
+
+After generating the dense Hamiltonian, I diagonalized it
+with the Fortran LAPACK95 routine {\tt syev} to obtain the
+spectrum of the Hamiltonian.
+For this problem, we are just interested in the ground state
+energies as a function of the parameters $L$ and $h$.
+
+\begin{figure}[h]
+\input{include/plots/1_dense_ed.tex}
+\end{figure}
+
+As a function of $L$, it appears that in figures A1 and A2, larger values of $L$
+have lower ground state energies that get increasingly lower as $h$ increases.
+This is because in the large $h$ regime, the system favors aligning with the
+transverse applied field, and since those terms in the Hamiltonian act on each site,
+the more site there are, the lower energy can be achieved.
+In addition, the logarithmic scale on the horizontal axis shows a shoulder around 
+$h\approx 1$, with the ground state energy approximately constant at $h<1$ and
+rapidly decreasing for $h>1$.
+And I don't know why they look like low-pass filters -- maybe that is just me.
+
+\begin{figure}[h]
+\input{include/plots/1_dense_ed_gap.tex}
+\end{figure}
+
+This figure shows how much lower in energy the ground state of the closed system
+is compared to that of the open system.
+Notably, the energy difference has a sigmoid shape as a function of $h$,
+with the inflection point at about the critical value of $h=1$.
+Thus, the different boundary conditions of the system have a substantial difference
+on the ground state energy in the $h<1$ phase, but this becomes negligible for $h>>1$
+due to the interaction with the transverse field.
+Also, the energy gap is nearly identical as a function of system size, due to the fact
+the main difference is due to the additional term in the Hamiltonian with closed boundaries.
 
 \newpage
 
 \section{
 Sparse ED
+}
+
+\subsection{
+Discussion
 }
 
 Using intel MKL, I would have two routines for solving
@@ -81,17 +126,13 @@ Therefore, I circumvented the use sparse array formats because the algorithm
 only needs a function that can multiply a vector by the Hamiltonian.
 So I probably shouldn't call this section ``Sparse ED''.
 
-I am able to push my Lanczos implementation to sizes of $L = 23$
-for $m = 32$ eigenvalues, but not any more since $L = 24$ produces
-critical errors at compilation time because it would require
-$4 * 2^24 = 67,108,864$ bytes (B) just to store one dense column of 
-single-precision floats of size $2^{24}$, and clearly I would need
-dozens of these for worker and output arrays, but I only have 16 GB of RAM.
-
-Here is an example of such a catastrophic compilation for $L=24, m=32$
-\lstinputlisting{./include/catastrophic_compilation.txt}
-
-Let's show how the algorithm's results compare to the dense solutions
+I am comfortably able to push my Lanczos implementation to sizes of $L = 24$
+for $m = 32$ eigenvalues, but I won't risk more since each run already takes
+a minute at that level.
+In some cases I knew I hit a computational limit when I tried to run the program
+and experienced a segmentation fault error 
+(some of these can be avoided by increasing the stack limit).
+In other cases the compiler simply failed to compile due to allocation overflows.
 
 Returning to the question of implementing sparse format at a later date,
 I will be faced with two very different implementations that mirror
@@ -112,13 +153,54 @@ convert the linked list into an array.
 The only thing I know is that the problem becomes
 increasingly sparse in larger dimensions. 
 
+\subsection{
+Results
+}
+
+The plot next page opens a can of worms: the Lanczos algorithm has
+a lot of behaviors going on.
+A few I can mention are that it get the largest and smallest
+eigenvalues (and some in the middle, where the lines intersect)
+accurately.
+Generally, the Lanczos spectrum is much flatter than the dense spectrum:
+it looks linear whereas the dense spectrum has curves.
+Also, the Lanczos spectrum has regions where it plateaus -- in particular
+and the ends of the spectrum.
+I suspect that in these regions, the algorithm has over-converged: too
+many eigenvalues were attracted to the extremes
+(this sounds like a queue for some fun music).
+
+\begin{figure}[h]
+\input{include/plots/2_sparse_ed_cmp.tex}
+
+\caption{
+    Parameters: $L = 8, h = 0.3$, open boundary conditions
+}
+\end{figure}
+
+I don't have much more to comment, but I'll just go ahead and plot
+a lot of data I have at different values of $h$, $L$, and for each boundary
+condition.
+
+
+When I pushed the Lanzos implementation to larger values of $L$, I intentionally
+told the solver to compute fewer eigenvalues.
+This leads to the following distorted spectra,
+which nonetheless will obtain accurate ground states.
+
 \newpage
 
 \section{
 Convergence with system size
 }
 
+\subsection{
+Discussion
+}
 
+\subsection{
+Results
+}
 
 \newpage
 
@@ -126,6 +208,14 @@ Convergence with system size
 Finding the quantum phase transition
 }
 
+
+\subsection{
+Discussion
+}
+
+\subsection{
+Results
+}
 
 
 \newpage
@@ -135,11 +225,22 @@ Magnetic ordering
 }
 
 
+\subsection{
+Discussion
+}
+
+\subsection{
+Results
+}
 
 \newpage
 
 \section{
 Using Ising symmetry
+}
+
+\subsection{
+Discussion
 }
 
 To transfer from the $z$ basis, $\{\ket{\uparrow}, \ket{\downarrow} \}$,
@@ -256,6 +357,41 @@ k = (2*j + (1 .xor. poppar(j))  ! from - sector to full basis
 j = (k - mod(k, 2)) / 2         ! Inverse in both sectors
 \end{lstlisting}
 
+\subsection{
+Results
+}
+
+
+
+\newpage
+
+\section{
+Conclusion
+}
+
+This has been an absurd but instructive experience.
+Learning Fortran was going to hurt, but I didn't expect
+it to hurt for so long.
+I feel like I mainly struggled with how to organize my
+code into parts that worked well with each other.
+I'll say that Fortran discourages convenience and complexity
+but as soon as you know what you want to do, implementation
+isn't much harder than in other programming languages.
+
+I also spent lots of time reading the intel and MKL documentation.
+It is so dense that you can't diagonalize the manual to get
+a wide spectrum of knowledge from it in any short amount of time.
+It is an excellent resource, in addition to the examples that come
+installed with the oneAPI packages.
+Now I know that I could work with it much better in the future
+since I'll be less ignorant about where to find help and details.
+
+If I could change other things about this assignment, it would be
+going through the exercise of making sparse matrix formats 
+(as paralyzing as all the choices that need to be made are)
+and possibly changing the "Discussion", "Results" format into
+"Approach", "Results", and "Discussion" to create space for the right thoughts
+
 \newpage
 
 \section{
@@ -264,19 +400,18 @@ Appendix: Code
 
 All of my source code is available by viewing or cloning
 \href{https://github.com/lxvm/ph121c.git}{this git repository}.
-
-The remaining sections are a minimal reference for how the code
-should be run and with what tools.
+The following sections are a minimal reference about my computer
+and the project.
 
 \subsection{
 Computing environment
 }
 
 I am using the Intel oneAPI base toolkit (with MKL)
-and HPC toolkit (with Fortran), which is freely available
+and HPC toolkit (with Fortran), which are freely available
 \href{https://software.intel.com/content/www/us/en/develop/
 articles/free-intel-software-developer-tools.html}{here}.
-This is some information about my system and software:
+Here is information about my computer and software:
 
 \lstinputlisting{./include/versions.txt}
 

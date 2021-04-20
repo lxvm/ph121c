@@ -21,7 +21,7 @@ program ordering
             call cpu_time(time_beg)
             call lanczos_ordering(L(i), h(j), 'V', 'c')
             call cpu_time(time_end)
-            print '(a20, f10.6, g0, i2, g0, f5.1, g0)', 'ordering ', &
+            print '(a20, f10.6, g0, i2, g0, f5.2, g0)', 'ordering ', &
                 time_end - time_beg, ' seconds to run L=', L(i), ' with h=', h(j), ' closed'
         end do
     end do
@@ -58,13 +58,13 @@ contains
         ! find the correlator at all sites and magnetization of the gs
         do k = 0, (L-1)
             write (1, '(i2, " ")', advance='no') L
-            write (1, '(f5.1, " ")', advance='no') h
+            write (1, '(f5.2, " ")', advance='no') h
             write (1, '(a2, " ")', advance='no') bc
             write (1, '(i2, " ")', advance='no') k
             write (1, '(f25.15)') corr_sigma_z(0, k, evecs(:, 1))
         end do
         write (1, '(i2, " ")', advance='no') L
-        write (1, '(f5.1, " ")', advance='no') h
+        write (1, '(f5.2, " ")', advance='no') h
         write (1, '(a2, " ")', advance='no') bc
         write (1, '(a2, " ")', advance='no') ' m'
         write (1, '(f25.15)') var_magnetization(L, evecs(:, 1))        

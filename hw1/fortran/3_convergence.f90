@@ -21,12 +21,12 @@ program convergence
             call cpu_time(time_beg)
             call lanczos_extremes(L(i), h(j), 'N', 'c')
             call cpu_time(time_end)
-            print '(a20, f10.6, g0, i2, g0, f5.1, g0)', 'convergence ', &
+            print '(a20, f10.6, g0, i2, g0, f5.2, g0)', 'convergence ', &
                 time_end - time_beg, ' seconds to run L=', L(i), ' with h=', h(j), ' closed'
             call cpu_time(time_beg)
             call lanczos_extremes(L(i), h(j), 'N', 'o')
             call cpu_time(time_end)
-            print '(a20, f10.6, g0, i2, g0, f5.1, g0)', 'convergence ', &
+            print '(a20, f10.6, g0, i2, g0, f5.2, g0)', 'convergence ', &
                 time_end - time_beg, ' seconds to run L=', L(i), ' with h=', h(j), ' open'
         end do
     end do
@@ -67,7 +67,7 @@ contains
             stop 'unknown bc'
         end if
         write (1, '(i2, " ")', advance='no') L
-        write (1, '(f5.1, " ")', advance='no') h
+        write (1, '(f5.2, " ")', advance='no') h
         write (1, '(a2, " ")', advance='no') bc
         write (1, '(f25.15)') evals(1)/L
     end subroutine lanczos_extremes    

@@ -8,7 +8,7 @@ program dense_ed
     implicit none
 
     integer, dimension (4), parameter :: L = (/ 8, 10, 12, 14 /)
-    real,    dimension (7), parameter :: h = (/ 0.0, 0.1, 0.7, 1.0, 7.0, 10.0, 100.0 /)
+    real,    dimension (9), parameter :: h = (/ 0.1, 0.18, 0.32, 0.56, 1.0, 1.78, 3.16, 5.62, 10.0 /)
     real time_beg, time_end
     integer i, j
 
@@ -21,13 +21,13 @@ program dense_ed
             call cpu_time(time_beg)
             call dense_ev(L(i), h(j), 'N', 'o')
             call cpu_time(time_end)
-            print '(a20, f10.6, g0, i2, g0, f5.1, g0)', 'dense_ed ', &
+            print '(a20, f10.6, g0, i2, g0, f5.2, g0)', 'dense_ed ', &
                 time_end - time_beg, ' seconds to run L=', L(i), ' with h=', h(j), ' open'
             ! closed bc
             call cpu_time(time_beg)
             call dense_ev(L(i), h(j), 'N', 'c')
             call cpu_time(time_end)
-            print '(a20, f10.6, g0, i2, g0, f5.1, g0)', 'dense_ed ', &
+            print '(a20, f10.6, g0, i2, g0, f5.2, g0)', 'dense_ed ', &
                 time_end - time_beg, ' seconds to run L=', L(i), ' with h=', h(j), ' closed'
         end do
     end do
@@ -63,7 +63,7 @@ contains
         call syev(evecs, evals, job)
         ! print ground state energy
         write (1, '(i2, " ")', advance='no') L
-        write (1, '(f5.1, " ")', advance='no') h
+        write (1, '(f5.2, " ")', advance='no') h
         write (1, '(a2, " ")', advance='no') bc
         write (1, '(f25.15)') evals(1)
     end subroutine dense_ev
