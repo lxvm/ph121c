@@ -170,23 +170,49 @@ I suspect that in these regions, the algorithm has over-converged: too
 many eigenvalues were attracted to the extremes
 (this sounds like a queue for some fun music).
 
-\begin{figure}[h]
+{\centering
+
 \input{include/plots/2_sparse_ed_cmp.tex}
 
-\caption{
-    Parameters: $L = 8, h = 0.3$, open boundary conditions
 }
-\end{figure}
 
-I don't have much more to comment, but I'll just go ahead and plot
-a lot of data I have at different values of $h$, $L$, and for each boundary
-condition.
+I wanted to study the convergence of the Lanczos algorithm
+as it relates to the overconvergence issue noticed above.
+Perhaps by asking the algorithm to find fewer eigenvalues,
+it doesn't overconverge as much.
+Figure B2 shows how the Lanczos spectrum evolves as a function
+of the requested number of eigenvalues (with rescaled x axis).
+To me it seems like 32 eigenvalues captures all the details
+the Lanczos spectrum seems capable of, but with less overconvergence.
 
+{\centering
+
+\input{include/plots/2_lanczos_test.tex}
+
+\input{include/plots/2_sparse_ed_cmp_all.tex}
+
+}
+
+On the previous page I plotted much more data at different 
+values of $h$, $L$, and for each boundary condition.
+In each case, I asked the Lanczos algorithm for the
+entire spectrum.
+All I can add about those plots is that we still see
+the accuracy of the Lanczos method at the extremal states,
+but due to overconvergence problems when computing all the
+eigenvalues we get erroneous spectra.
 
 When I pushed the Lanzos implementation to larger values of $L$, I intentionally
-told the solver to compute fewer eigenvalues.
+told the solver to compute fewer eigenvalues, only 32.
 This leads to the following distorted spectra,
 which nonetheless will obtain accurate ground states.
+
+
+{\centering
+
+\input{include/plots/2_sparse_ed_exe.tex}
+
+}
 
 \newpage
 
@@ -198,8 +224,56 @@ Convergence with system size
 Discussion
 }
 
+In this section, we study how the energy of the ground
+state behaves as we increase the system length.
+This means running a lot of simulations.
+
 \subsection{
 Results
+}
+
+A range of simulations for the ground state energy were
+conducted with the Lanczos solver and only obtaining 
+32 eigenvalues.
+These simulations went to the largest system size I
+could simulate in a minute, $L=24$.
+
+{\centering
+
+\input{include/plots/3_convergence.tex}
+
+}
+
+Figure C1 shows the ground state energy per site, $\lambda_0 / L$
+as a function of $h$, $L$ and the boundary conditions.
+Larger values of $h$ result in lower values of $\lambda_0 / L$.
+Open boundary conditions allow for substantially more variation
+in $\lambda_0 / L$, though it appears to be decaying at least
+algebraically.
+Closed boundary conditions vary in $\lambda_0$ about one order
+of magnitude less than the open boundary conditions, when you
+compare the decimal digits which appear to vary in each plot.
+The top left panel shows an unusally large spike at $L=22$,
+which may be due to numerical errors at large $L$ while keeping
+the number of eigenvalues fixed.
+Despite the spike in the closed systems, their $\lambda_0 / L$
+varies much less than in the open systems, which makes closed
+systems a better choice to study to avoid finite-size effects.
+
+In figure C2 is plotted the quantity $\qty( \lambda_0(L) - \lambda_0(L-2)) / 2$
+for only systems with open boundary conditions.
+This represents an additional energy acquired per site at the center of the chain
+at that size.
+In general, it is a quantity that decreases with the system size, though
+there does seem to be a spike that at $L=24$ that might be due to numerical
+errors.
+The decreasing trend indicates the diminishing effect of the open boundaries
+as the size of the bulk system increases.
+
+{\centering
+
+\input{include/plots/3_trick.tex}
+
 }
 
 \newpage
@@ -386,11 +460,21 @@ installed with the oneAPI packages.
 Now I know that I could work with it much better in the future
 since I'll be less ignorant about where to find help and details.
 
+Gnuplot was also a bear to pick up.
+There are a lot of details you need to get right with any plotting program,
+and since there's no native support for data frames, things get tricky.
+I could probably make my programs more elegant by incorporating {\tt grep}
+to filter out all the lines I want in a data file, but the ease will never
+be as simple as with using a program like R whose data frames are super
+straightforward to plot.
+Or using python, pandas + matplotlib allow for similar operations.
+
 If I could change other things about this assignment, it would be
 going through the exercise of making sparse matrix formats 
 (as paralyzing as all the choices that need to be made are)
 and possibly changing the "Discussion", "Results" format into
-"Approach", "Results", and "Discussion" to create space for the right thoughts
+"Approach", "Results", and "Discussion" to talk more about 
+the results themselves.
 
 \newpage
 

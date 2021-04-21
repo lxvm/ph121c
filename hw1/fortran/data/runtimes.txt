@@ -226,3 +226,21 @@
         symmetry---  71.440460 seconds to run L=25 with h=  1.0 closed
         symmetry+++  68.712524 seconds to run L=25 with h=  1.7 closed
         symmetry---  71.330994 seconds to run L=25 with h=  1.7 closed
+       lanczos_test   0.059314 seconds to run L= 8 with h= 0.30 closed
+       lanczos_test   0.047954 seconds to run L= 8 with h= 1.70 closed
+              trick   0.002266 seconds to run L= 8 with h= 0.30 open
+              trick   0.001768 seconds to run L= 8 with h= 1.70 open
+              trick   0.008482 seconds to run L=10 with h= 0.30 open
+              trick   0.007746 seconds to run L=10 with h= 1.70 open
+              trick   0.041068 seconds to run L=12 with h= 0.30 open
+              trick   0.040102 seconds to run L=12 with h= 1.70 open
+              trick   0.175518 seconds to run L=14 with h= 0.30 open
+              trick   0.174502 seconds to run L=14 with h= 1.70 open
+              trick   0.752800 seconds to run L=16 with h= 0.30 open
+              trick   0.745267 seconds to run L=16 with h= 1.70 open
+              trick   3.229825 seconds to run L=18 with h= 0.30 open
+              trick   3.240860 seconds to run L=18 with h= 1.70 open
+              trick  16.139137 seconds to run L=20 with h= 0.30 open
+              trick  16.147686 seconds to run L=20 with h= 1.70 open
+              trick  71.556129 seconds to run L=22 with h= 0.30 open
+              trick  70.388992 seconds to run L=22 with h= 1.70 open

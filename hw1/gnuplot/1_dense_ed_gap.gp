@@ -1,4 +1,5 @@
-set terminal cairolatex pdf
+set terminal cairolatex pdf \
+    size 5, 3
 set output "../tex/include/plots/1_dense_ed_gap.tex"
 data="data/dense_ed.dat"
 Nsim=9
@@ -16,4 +17,5 @@ plot for [n=0:3] data \
     with lp
 
 unset output
+unset terminal
 reset
