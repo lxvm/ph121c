@@ -1,0 +1,7 @@
+## Compiled binaries and module files
+*.out
+*.mod
+*.o
+## Data files
+*fort.*
+*.dat

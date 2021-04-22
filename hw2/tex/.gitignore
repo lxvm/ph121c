@@ -1,0 +1,24 @@
+## Core latex/pdflatex output files:
+*.dvi
+*.pdf
+## Core latex/pdflatex auxiliary files:
+*.aux
+*.lof
+*.log
+*.lot
+*.fls
+*.out
+*.toc
+*.fmt
+*.fot
+*.cb
+*.cb2
+.*.lb
+## Build tool auxiliary files:
+*.fdb_latexmk
+## Core biber/biblatex auxiliary files:
+*.bbl
+*.blg
+*.bcf
+*.run.xml
+
