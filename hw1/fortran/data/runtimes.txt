@@ -244,3 +244,12 @@
               trick  16.147686 seconds to run L=20 with h= 1.70 open
               trick  71.556129 seconds to run L=22 with h= 0.30 open
               trick  70.388992 seconds to run L=22 with h= 1.70 open
+           fidelity 137.697266 seconds to run L=24 with h= 0.60 closed
+           fidelity 135.930191 seconds to run L=24 with h= 0.80 closed
+           fidelity 138.356659 seconds to run L=24 with h= 0.90 closed
+           fidelity 138.480286 seconds to run L=24 with h= 0.95 closed
+           fidelity 137.450623 seconds to run L=24 with h= 1.00 closed
+           fidelity 141.051819 seconds to run L=24 with h= 1.05 closed
+           fidelity 139.066711 seconds to run L=24 with h= 1.10 closed
+           fidelity 139.266235 seconds to run L=24 with h= 1.20 closed
+           fidelity 138.474854 seconds to run L=24 with h= 1.40 closed

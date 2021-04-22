@@ -126,6 +126,8 @@ Therefore, I circumvented the use sparse array formats because the algorithm
 only needs a function that can multiply a vector by the Hamiltonian.
 So I probably shouldn't call this section ``Sparse ED''.
 
+I implemented the Lanczos routine as described on
+\href{https://en.wikipedia.org/wiki/Lanczos_algorithm}{Wikipedia}.
 I am comfortably able to push my Lanczos implementation to sizes of $L = 24$
 for $m = 32$ eigenvalues, but I won't risk more since each run already takes
 a minute at that level.
@@ -287,10 +289,49 @@ Finding the quantum phase transition
 Discussion
 }
 
+Here we are studying the quantum phase transition
+at the largest system size in terms of the effect on
+the excitation gap from the ground state.
+
 \subsection{
 Results
 }
 
+{\centering
+
+\input{include/plots/4_transition.tex}
+
+}
+
+
+{\centering
+
+\input{include/plots/4_fidelity.tex}
+
+}
+
+Figure D1, left panel, shows the first four eigenvalues
+from each Lanczos diagonalization.
+The leftmost value of $h$ resulted in overconvergence, which
+is why the gap from the ground state to the first excited state is
+0 on the right panel for $h=0.3$.
+On the right panel, it appears as though there is a local minimum
+in the ground state gap at $h=1$.
+I am not sure why the gap shrinks for small $h$, but I would assume
+that has to do with errors from my implementation fo the Lanczos method.
+I would like to estimate the exponent $\nu$ describing
+$\lambda_0 - \lambda_1 \propto \abs{h-1}^\nu$, however I'm afraid my data
+just isn't good enough for that.
+I would probably need a more accurate solver and to scan many more points
+near the critical value.
+
+In figure D2, I plotted the fidelity of the ground state I obtained with
+my Lanczos implementation, using a step size of $dh=0.01$.
+There appears to be a deep dip at about $h=0.95$, but there are also
+dips for smaller $h$.
+My Lanczos routine is probably making mistakes in this $h<1$ region, where
+we know that the spectrum is steeper based on the dense diagonalization
+spectra in Figure B3.
 
 \newpage
 
@@ -303,8 +344,44 @@ Magnetic ordering
 Discussion
 }
 
+In this section we look at the long-range order
+of spins within the Ising chain in terms of the
+correlations of the spins orientations.
+
 \subsection{
 Results
+}
+
+
+{\centering
+
+\input{include/plots/5_magnetic.tex}
+
+}
+
+In the plot above is shown the variance of the magnetization per site.
+Again, my solver seems to have failed at $h=0.3$ and large $L$.
+Ignoring this, for small $h<1$, it is a constant with respect to $L$.
+This is the ferromagnetic phase when the magnet is saturated.
+For $h=1$, the magnetization variance wavers or decays slightly.
+For $h>1$, the variance of the magnetization per site, decreases slowly,
+likely due to the alignment of the spins with the transverse field.
+
+In figure E2, the parwise correlator, $C^{zz}(r) = \ev{\sigma^z_1 \sigma^z_{1+r}}$
+is plotted for various chain lengths and characteristic values of $h$.
+For $h<1$ (except for large $L$ where my implementation falls short),
+the correlation is nearly 1 across the chain.
+For $h=1$, the correlation drops along the length of the chain (to lower
+values at midpoints of longer chains), but never zero.
+For $h>1$, the correlation drops fairly quickly to zero away from the first
+site on the chain.
+In summary, for $r$ at the midpoint, the correlation is about 1 for $h<1$,
+decreasing with $L$ at the critical point, and 0 for $h>1$.
+
+{\centering
+
+\input{include/plots/5_ordering.tex}
+
 }
 
 \newpage
@@ -435,6 +512,48 @@ j = (k - mod(k, 2)) / 2         ! Inverse in both sectors
 Results
 }
 
+The first thing to look at is how the values of the ground
+state energy differ in the different sectors.
+
+{\centering
+
+\input{include/plots/6_gap.tex}
+
+}
+
+Well indeed, the energy splitting in the ground state,
+which in the plot is normalized by the system size,
+appears to decay exponentially
+with the system size, or at least very quickly.
+It does also seem like there is some numerical error at the largest system size of 
+$L=25$.
+
+On the following page, figure F2,
+I used the symmetry sector solver to compute the lowest eigenvalues
+of larger systems, solving for 32 eigenvalues in each sector.
+They behave like before, some of the solutions $L\geq 24$ showing overconvergence
+at the lowest eigenvalue, and for smaller $L$, there appears to
+be a dip in the ground state excitation energy at the 
+critical point, because the lines for $\lambda_0$ and $\lambda_1$
+get closer together at $h=1$.
+In addition, there appears to be little difference across the two sectors,
+but it did make it possible to solve for a larger system.
+Because I told my Lanczos routine to solve for the same number
+of eigenvalues anyway, I saw none of the promised 4-fold speedup,
+when combining runtimes from both sectors, because my Lanczos algorithm
+as implemented only needs to multiply vectors by the Hamiltonian,
+and that algorithm, when using the symmetry property, only had to do half as many
+bit operations (1/2 as long a vector), but then there are two sectors.
+In total, I calculated twice as many eigenvalues in the same amount of time.
+
+\newpage
+
+{\centering
+
+\input{include/plots/6_symmetry.tex}
+
+}
+
 
 
 \newpage
@@ -444,6 +563,10 @@ Conclusion
 }
 
 This has been an absurd but instructive experience.
+Absurd because there was probably no concrete benefit
+for making myself do it this way.
+Instructive because I learned how to use new software.
+
 Learning Fortran was going to hurt, but I didn't expect
 it to hurt for so long.
 I feel like I mainly struggled with how to organize my

@@ -15,7 +15,7 @@ program symmetry
     integer i, j
 
     open (1, file='data/symmetry.dat', access='append')
-    write (1, *) 'L     h bc k s               expectation'
+    write (1, *) 'L     h bc k s             eigenvalue'
     do i = 1, size(L)
         do j = 1, size(h)
             call cpu_time(time_beg)

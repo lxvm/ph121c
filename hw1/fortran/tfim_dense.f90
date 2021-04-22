@@ -254,7 +254,7 @@ contains
 
         mag = 0
         do i = 0, L-1
-            mag = mag + corr_sigma_z(0, i, v)
+            mag = mag + corr_sigma_z(0, i, v) / L
         end do
     end function var_magnetization
 

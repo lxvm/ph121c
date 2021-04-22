@@ -67,7 +67,7 @@ contains
         write (1, '(f5.2, " ")', advance='no') h
         write (1, '(a2, " ")', advance='no') bc
         write (1, '(a2, " ")', advance='no') ' m'
-        write (1, '(f25.15)') var_magnetization(L, evecs(:, 1))        
+        write (1, '(f25.15)') var_magnetization(L, evecs(:, 1))
     end subroutine lanczos_ordering
 
 end program ordering
