@@ -59,22 +59,19 @@ formats.
 
 We enter the package zoo wherein we stand on the shoulders of giants ...
 
-Install `imagemagick` 
-(it comes with the command line tools `convert` and `identify`).
-Use `imagemagick` to convert your pictures to grayscale: see this
-[stackoverflow post](https://stackoverflow.com/questions/13317753/convert-rgb-to-grayscale-in-imagemagick-command-line).
-Also, convert all images to `png` format for use with matplotlib`.
-
-In Python, options to read an image into an array:
-- [`matplotlib`](https://matplotlib.org/): 
-`matplotlib.image` module supports the `png` format with `imread()`
+In Python, options to read an image input/output as array:
 - [`pillow`](https://python-pillow.org/): 
 active development of Python Image Library (PIL)
+- [`skimage`](https://scikit-image.org/):
+image processing in Python
+- [`imageio`](https://imageio.github.io/):
+image reading and writing in Python
 - [`opencv`](https://docs.opencv.org/master/): 
 computer vision algorithms
+- [`matplotlib.image`](https://matplotlib.org/stable/api/image_api.html#module-matplotlib.image): 
+has some functionality but is not as capable
 
-More words on reading images into numpy arrays in this
-[stackoverflow post](https://stackoverflow.com/questions/7762948/how-to-convert-an-rgb-image-to-numpy-array).
+Note that almost every package uses `pillow`, so I will too.
 
 ## More help
 
