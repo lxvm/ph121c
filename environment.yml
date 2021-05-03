@@ -17,8 +17,8 @@ dependencies:
   - brotli=1.0.9=hf484d3e_1
   - bzip2=1.0.8=hb9a14ef_6
   - c-ares=1.17.1=h14c3975_0
-  - ca-certificates=2021.4.13=h06a4308_1
-  - certifi=2020.12.5=py37h06a4308_0
+  - ca-certificates=2020.12.5=0
+  - certifi=2020.12.5=py37_0
   - cffi=1.14.4=py37h14c3975_0
   - chardet=4.0.0=py37_0
   - common_cmplr_lib_rt=2021.2.0=intel_610
@@ -43,6 +43,8 @@ dependencies:
   - gflags=2.2.2=hf484d3e_0
   - glog=0.4.0=h54a7bfb_0
   - grpc-cpp=1.26.0=he460374_0
+  - h5py=2.10.0=py37hd6299e0_1
+  - hdf5=1.10.6=hb1b8bf9_0
   - icc_rt=2021.2.0=intel_610
   - idna=3.1=py37_0
   - impi_rt=2021.2.0=intel_215
@@ -57,6 +59,7 @@ dependencies:
   - jedi=0.17.0=py37_0
   - jinja2=2.11.3=pyhd3eb1b0_0
   - joblib=1.0.1=py37_0
+  - jpeg=9d=h36c2ea0_0
   - json5=0.9.5=py_0
   - jsonschema=3.2.0=py_2
   - jupyter-packaging=0.7.12=pyhd3eb1b0_0
@@ -67,10 +70,12 @@ dependencies:
   - jupyterlab_pygments=0.1.2=py_0
   - jupyterlab_server=2.4.0=pyhd3eb1b0_0
   - kiwisolver=1.3.1=py37hf484d3e_0
+  - lcms2=2.11=h396b838_0
   - libarchive=3.4.2=hae7a978_7
   - libevent=2.1.10=h14c3975_0
   - libffi=3.3=13
   - libgcc-ng=9.3.0=hdf63c60_101
+  - libgfortran-ng=7.3.0=hdf63c60_0
   - libllvm10=10.0.0=h5abf007_8
   - libopenssl-static=1.1.1j=h14c3975_1
   - libpng=1.6.37=7
@@ -79,6 +84,8 @@ dependencies:
   - libsodium=1.0.18=h7b6447c_0
   - libstdcxx-ng=9.3.0=hdf63c60_101
   - libthrift=0.13.0=ha72d5fa_6
+  - libtiff=4.2.0=h3942068_0
+  - libwebp-base=1.2.0=h27cfd23_0
   - libxml2=2.9.10=h58efa85_4
   - llvm=10.0.0=8
   - llvm-spirv=10.0.0=h6bb024c_1
@@ -108,8 +115,9 @@ dependencies:
   - numexpr=2.7.2=py37hfeeda64_1
   - numpy=1.20.1=py37h288f0c4_0
   - numpy-base=1.20.1=py37hffe281f_0
+  - olefile=0.46=py37_0
   - opencl_rt=2021.2.0=intel_610
-  - openssl=1.1.1k=h27cfd23_0
+  - openssl=1.1.1j=h14c3975_1
   - orc=1.6.6=he460374_0
   - packaging=20.9=pyhd3eb1b0_0
   - pandas=1.2.0=py37h9fed7e5_0
@@ -118,6 +126,7 @@ dependencies:
   - parso=0.8.2=pyhd3eb1b0_0
   - pexpect=4.8.0=pyhd3eb1b0_3
   - pickleshare=0.7.5=pyhd3eb1b0_1003
+  - pillow=8.1.2=py37he98fc37_0
   - pip=21.0.1=py37_0
   - prometheus_client=0.10.1=pyhd3eb1b0_0
   - prompt-toolkit=3.0.17=pyh06a4308_0
