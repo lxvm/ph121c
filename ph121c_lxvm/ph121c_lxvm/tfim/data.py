@@ -61,6 +61,7 @@ def job (func, params, solver, job, archive=ARCHIVE):
     try:
         return hdf5.find(dset, archive)
     except Exception:
+        print('Data not found so starting calculation')
         tic = time.perf_counter()
         data = solver(**job)
         toc = time.perf_counter() - tic
