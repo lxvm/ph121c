@@ -18,14 +18,14 @@ Slight correction to the first if using installation of oneapi basekit:
 
 ```
 # Activate oneapi environment
-$ . /opt/intel/oneapi/setvars.sh
+> . /opt/intel/oneapi/setvars.sh
 # Activate oneapi conda environment
-$ conda activate base
+> conda activate base
 # Prioritize the packages already installed with basekit
-$ conda config --add channels file:///opt/intel/oneapi/conda_channel
-$ conda env export > environment.yml    # this saves environment to a file
+> conda config --add channels file:///opt/intel/oneapi/conda_channel
+> conda env export -f environment.yml    # this saves environment to a file
 # Create a new environment from environment.yml file
-$ conda env create -n <env_name>        # Default: --file environment.yml
+> conda env create -n <env_name>        # Default: --file environment.yml
 # Install more packages as necessary, typically by another conda channel or pip
 ```
 
@@ -72,6 +72,16 @@ computer vision algorithms
 has some functionality but is not as capable
 
 Note that almost every package uses `pillow`, so I will too.
+
+## Runtimes
+
+The file `runtimes.txt` contains some of the diagonalization runtimes for 
+smaller systems of up to $L=20$.
+I am sad that I trying to make larger matrices results in the IPython kernel
+crashing, but I can work around this by using scipy LinearOperator instances.
+The issue with that however is that the code is slower because it uses my 
+single-threaded LinearOperator much more heavily
+
 
 ## More help
 
