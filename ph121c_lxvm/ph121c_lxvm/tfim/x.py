@@ -11,10 +11,10 @@ Supports the following formats for storing the Hamiltonian:
 - scipy.sparse.linalg.csr_matrix
 """
 
-
 import numpy as np
 from scipy.sparse import coo_matrix
 from scipy.sparse.linalg import LinearOperator
+
 
 def mylookup (n):
     """This is the same as my Fortran function parity_diag"""

@@ -1,5 +1,6 @@
 __all__ = [
-    'hdf5',
+    'magnet',
+    'entropy',
 ]
 
 from . import *

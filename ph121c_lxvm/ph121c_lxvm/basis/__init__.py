@@ -1,5 +1,5 @@
 __all__ = [
-    'hdf5',
+    'schmidt',
 ]
 
 from . import *
