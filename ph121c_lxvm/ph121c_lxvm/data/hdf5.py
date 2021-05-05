@@ -39,11 +39,53 @@ def save (path, data, metadata, archive):
                 dset.attrs[key] = value
         except TypeError:
             grp = obj.create_group(path)
+            for key, value in metadata.items():
+                grp.attrs[key] = value
             for i, e in enumerate(data):
-                rwrite(grp, str(i), e, metadata)
+                # do not rewrite metadata to subsets
+                rwrite(grp, str(i), e, {})
                 
     with h5py.File(archive, 'a') as f:
         try:
             rwrite(f, path, data, metadata)
         except Exception as ex:
             raise UserWarning('Couldnt write dataset. Check data items', ex)
+            
+def inquire (archive, path='/', fields=True, select=True):
+    """Retrieve metadata from one or more datasets."""
+    def rinquire (obj, fields, select):
+        """Recursively inquire"""
+        def get_chosen_attrs (obj, fields, select):
+            """Retrieve the chosen attributes"""
+            if select:
+                if isinstance(select, dict):
+                    for k, v in select.items():
+                        if k in obj:
+                            if v not in obj[k]:
+                                selected = False
+                                break
+                else:
+                    selected = True
+            else:
+                selected = False
+            if selected:
+                if fields == True:
+                    return dict(obj.attrs)
+                return { 
+                    field : obj.attrs[field] 
+                    for field in fields
+                    if field in obj.attrs
+                }
+            
+        if isinstance(obj, h5py.Dataset):
+            return get_chosen_attrs(obj, fields, select)
+        elif isinstance(obj, h5py.Group):
+            attrs = { item : rinquire(obj[item], fields, select) for item in obj }
+            attrs.update(get_chosen_attrs(obj, fields, select))
+            return attrs
+
+        
+    with h5py.File(archive, 'r') as f:
+        return rinquire(f[path], fields, select)
+            
+            

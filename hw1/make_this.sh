@@ -23,6 +23,7 @@ cd fortran
 # compile
 . bin/compile_lines.txt
 # run programs
+ulimit -s unlimited
 for i in `ls bin | grep -v compile_lines.txt`
 do
   ./bin/$i | tee -a data/runtimes.txt

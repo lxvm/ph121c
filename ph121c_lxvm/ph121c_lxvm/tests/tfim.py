@@ -11,7 +11,7 @@ import numpy as np
 import scipy.linalg as la
 import scipy.sparse.linalg as sla
 
-from .. import tfim
+from .. import tfim, data
 
 def param_sweep (
     L  = set(range(4, 11, 2)),
@@ -73,46 +73,75 @@ class tfim_data_storage(unittest.TestCase):
     
     def setUp (self):
         """Set testing parameters"""
-        self.func = tfim.z.H_sparse
-        self.params_a = {
-            'L'  : set([4, 5]),
-            'h'  : set([0.3, 1.0, 1.7]),
-            'bc' : set(['o', 'c']),
-        }
-        self.params_b = {
-            'L'  : set([4, 6]),
-            'h'  : set([0.3, 1.0, 1.7]),
-            'bc' : set(['o', 'c']),
-        }
+        self.oper = tfim.z.H_sparse
+        self.oper_params = [
+            {
+                'L'  : set([4, 5]),
+                'h'  : set([0.3, 1.0, 1.7]),
+                'bc' : set(['o', 'c']),
+            },
+            {
+                'L'  : set([4, 6]),
+                'h'  : set([0.3, 1.0, 1.7]),
+                'bc' : set(['o', 'c']),
+            },
+        ]
         self.solver = sla.eigsh
-        self.job = lambda params : { 'A' : self.func(**params) }
+        self.solver_params = [
+            {
+                'k' : 6,
+                'which' : 'BE',
+            }
+        ]
         self.archive = mkstemp()[1]
         
     def test_hashable_naming (self):
         """Check naming is unique and repeatable"""
-        for p_a, p_b in zip(
-            param_sweep(**self.params_a),
-            param_sweep(**self.params_b),
-        ):
-            a = tfim.data.name(self.func, p_a, self.solver, self.job(p_a))
-            b = tfim.data.name(self.func, p_b, self.solver, self.job(p_b))
-            if p_a == p_b:
-                self.assertTrue(a == b)
-            else:
-                self.assertTrue(a != b)
-            
+        for solver_params in self.solver_params:
+            for oper_params_tuple in zip(
+                *[ param_sweep(**p) for p in self.oper_params ]
+            ):
+                names = [
+                    tfim.data.job_name(
+                        self.oper,   oper_params,
+                        self.solver, solver_params,
+                    ) 
+                    for oper_params in oper_params_tuple
+                ]
+                for pair in combinations(
+                    zip(names, oper_params_tuple), r=2
+                ):
+                    if pair[0][1] == pair[1][1]:
+                        self.assertTrue(pair[0][0] == pair[1][0])
+                    else:
+                        self.assertTrue(pair[0][0] != pair[1][0])
+
     def test_hdf5_interface (self):
-        """Make sure writing to archive works."""
-        for p in param_sweep(**self.params_a):
-            # should calculate a new dataset
-            data = tfim.data.job(
-                self.func, p, self.solver, self.job(p), self.archive
-            )
-            # should fetch the calculated dataset
-            fetch = tfim.data.job(
-                self.func, p, self.solver, self.job(p), self.archive
-            )
-        
+        """Make sure reading and writing to archive works."""
+        for solver_params in self.solver_params:
+            for oper_params in param_sweep(**self.oper_params[0]):
+                job = [self.oper, oper_params, self.solver, solver_params]
+                # should calculate a new dataset
+                _ = tfim.data.obtain(
+                    *job, archive=self.archive, batch=True,
+                )
+                self.assertTrue(
+                    tfim.data.LAST_EXIT_MODE == tfim.data.EXIT_MODES[1]
+                )
+                # should fetch the calculated dataset
+                fetch = tfim.data.obtain(
+                    *job, archive=self.archive, batch=False,
+                )
+                self.assertTrue(
+                    tfim.data.LAST_EXIT_MODE == tfim.data.EXIT_MODES[0]
+                )
+                # should store/fetch metadata correctly
+                metadata = data.hdf5.inquire(
+                    self.archive, path=tfim.data.job_name(*job),
+                )
+                for k, v in tfim.data.job_metadata(*job).items():
+                    self.assertTrue(v == metadata[k])
+
     def tearDown(self):
         """Delete temp file"""
         os.remove(self.archive)
