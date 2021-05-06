@@ -83,7 +83,6 @@ def inquire (archive, path='/', fields=True, select=True):
             attrs = { item : rinquire(obj[item], fields, select) for item in obj }
             attrs.update(get_chosen_attrs(obj, fields, select))
             return attrs
-
         
     with h5py.File(archive, 'r') as f:
         return rinquire(f[path], fields, select)
