@@ -6,7 +6,6 @@ import unittest
 from tempfile import mkstemp
 from itertools import combinations
 
-import h5py
 import numpy as np
 import scipy.linalg as la
 import scipy.sparse.linalg as sla
