@@ -9,7 +9,7 @@ steps to (hopefully) reproduce my environment exactly:
 - Using `conda` packaged with the basekit, use the `environment.yml` file to
 create a virtual environment with the exact packages
 - Install the local package within the virtual environment, i.e. with:
-`> python -m pip install -e ph121c-lxvm`
+`> cd ph121c_lxvm; python setup.py develop`
 
 I believe that Intel Python is also available in the `intel` channel on `conda`.
 Note this is specific to my Python code and if I use Fortran anywhere then
@@ -41,6 +41,52 @@ run at the command line via commands such as
 ### Package status
 - Needs argument specifications in all docstrings
 - Most of the tfim tasks have an associated test -- keep it up!
+
+### Fortran integration
+
+The module `numpy.f2py` allows for integration of Fortran code into Python.
+This can be very beneficial, especially for very loopy tasks that are purely
+computational, such as building Hamiltonians in COO format.
+The actual integration can be a little tedious, but the numpy docs and this
+[example package](https://github.com/scivision/f2py-examples)
+provide a lot of help to do so.
+Ultimately, fast code, even with `numpy`, requires memory allocation.
+For simple computational tasks, the activation energy for using Fortran
+isn't too large.
+For using Fortran-specific modules that don't have a `numpy` or `scipy`
+equivalent, I imagine that there begin the typical difficulties one
+experiences in Fortran related to compiling and linking libraries.
+
+There are many microscopic bugs that this introduces: one about certain parts
+of the Fortran code needing to be understood by C (such as '**'), or 
+how to actually distribute the Fortran code as a Python package,
+which for me led to an [error](https://github.com/dmlc/xgboost/issues/820).
+
+The recommended way to interface Fortran and Python is actually via Cython.
+What `f2py` does in the background anyway is to port the Fortran to C.
+[Best practices reference](https://www.fortran90.org/src/best-practices.html#interfacing-with-python).
+I would recommend using the best practices, however after I got started with
+`f2py`, it was too late to go back.
+You can't exactly reuse existing Fortran code with `f2py`.
+For example, functions need to be rewritten as subroutines, where the intent
+of the arguments then gets translated into a Python function's return value.
+You also cannot use allocatable arrays, the only flexibility is if you use a
+function with a C equivalent in the array size declaration (such as pow()) but
+you may have to write your own Fortran wrapper (so pass an array size argument).
+On the other hand, Cython requires a lot of setup and understanding
+how to interface Fortran to C and C to Python.
+
+I can't assure you that my Fortran code is really portable, but hopefully it
+works if you have an Intel compiler.
+
+#### Brilliant
+
+[LFortran](https://lfortran.org/) is an under-development Fortran kernel for
+Jupyter.
+It's not good enough because it doesn't have enough intrinsics to be useful,
+but it is cool and I think should be mentioned because it might make learning
+Fortran more fun (at the risk of not being complete).
+[Another kernel](https://github.com/ZedThree/jupyter-fortran-kernel).
 
 ### Misc
 

@@ -9,104 +9,164 @@ Supports the following formats for storing the Hamiltonian:
 - numpy.ndarray
 - scipy.sparse.linalg.LinearOperator
 - scipy.sparse.linalg.csr_matrix
+
+Conceptually, Hamiltonians in the x-basis are obtain from those in the z-basis 
+by applying a Hadamard gate to each site:
+[[1,  1],
+ [1, -1]] * (np.sqrt(2) ** -1)
+This means sigma z in the x basis has the matrix elements of sigma x in the z
+basis, and vice versa.
+In implementation, we just apply the appropriate bit flip operators.
+
+Open boundary conditions don't give a Hamiltonian that exhibits the duality
+sigma_i^x -> tau_i^x tau_{i+1}^x and sigma_i^z sigma_{i+1}^z -> tau_i^x,
+but it is easy enough to implement this case as a basis due to the bitwise
+construction of the Hamiltonian, simply ommiting the effect of the periodic
+boundary term sigma_{L-1}^z sigma_0^z.
 """
 
 import numpy as np
 from scipy.sparse import coo_matrix
 from scipy.sparse.linalg import LinearOperator
 
+from ..basis   import bits
+from ..fortran import tfim
 
-def mylookup (n):
-    """This is the same as my Fortran function parity_diag"""
-    if n > 1:
-        table = mylookup(n-1)
-        return np.append(table, table ^ 1)
+
+sign = lambda x: ((2 * x) - 1)
+
+def H_sparse (L, h, bc, sector):
+    """Return the Hamiltonian in sparse CSR format."""
+    assert bc in ['c', 'o']
+    assert sector in ['+', '-', 'f']
+    if sector == 'f':
+        N = L
+        N_el = (L + (bc == 'c')) * (2 ** N)
     else:
-        return np.arange(2)
+        N = L - 1
+        N_el = (L + (bc == 'c')) * (2 ** N)
 
-# Lookup table of size 256
-parity_lookup = mylookup(8)
+    data, rows, cols = tfim.h_x_coo(N_el, L, h, bc, sector)
+    return coo_matrix((data, (rows, cols)), shape=(2**N, 2**N)).tocsr()
 
-def poppar (n):
-    """Calculate the parity of the population of bits in an integer
-    https://graphics.stanford.edu/~seander/bithacks.html
+def H_vec (v, L, h, bc, sector):
+    """Compute H|v> efficiently."""
+    assert bc in ['c', 'o']
+    assert sector in ['+', '-', 'f']
+    if sector == 'f':
+        N_el = 2 ** L
+    else:
+        N_el = 2 ** (L - 1)
+    
+    return tfim.h_x_vec(v, L, h, bc, sector, N_el)
+
+def old_old_H_sparse (L, h, bc, sector):
+    """Return the Hamiltonian in sparse CSR format.
+    
+    This used to be a bottleneck in the code because of COO format using lists.
     """
-    n ^= n >> 16
-    n ^= n >> 8
-    return parity_lookup[n & 0xff]
-
-vpoppar = np.vectorize(poppar, otypes=[int])
-
-def convert (n, at, to):
-    """Transform indicies to and from the symmetry sectors"""
-    if at == 'full':
-        return (n - n % 2) // 2
-    elif at == '+':
-        return 2 * n + vpoppar(n)
-    elif at == '-':
-        return 2 * n + vpoppar(n) ^ 1
-
-def H_row (L, h, row, bc='o', sector='+'):
-    """Compute row of matrix elements of H as 3 lists for COO format"""
+    assert bc in ['c', 'o']
+    assert sector in ['+', '-']
     # Matrix elements in entry, row, column format
     m_el = ([], [], [])
-    def append_entry (*entry):
+    def append_entry (*entries):
         for i, e in enumerate(m_el):
-            e.append(entry[i])
-    # Relate sector index to full index
-    full = convert(row, sector, 'full')
-    # sign flips, sigma x
-    diag = 0
-    for i in range(L):
-        diag -= h*(2 * (((full & (2 ** i)) << 1) == (full & (2 ** (i+1)))) - 1)
-    append_entry(diag, row, row)
-    # spin flips, sigma z
-    for i in range(L-1):
-        append_entry(-1 , row, convert(full ^ (3 * (2 ** i)), 'full', sector))
-    if bc == 'c':
-        append_entry(-1 , row, convert(full ^ ((2 ** (L-1))+1), 'full', sector))
-    return m_el
+            e.append(entries[i])
+            
+    for row in range(2 ** (L-1)):
+        # Relate sector index to full index
+        k = ((2 * row) + (bits.poppar(row) ^ (sector == '-')))
+        # sign flips, sigma x
+        diag = 0
+        for i in range(L):
+            diag -= h * sign(bits.btest(k, i) == bits.btest(k, i+1))
+        append_entry(diag, row, row)
+        # spiin flips, sigma z
+        for i in range(L - 1 + (bc == 'c')):
+            m = ((k ^ (2 ** i)) ^ (2 ** ((i + 1) % L)))
+            append_entry(-1 , row, (m - (m % 2)) // 2)
+    return coo_matrix((m_el[0], m_el[1:]), shape=(2**(L-1), 2**(L-1))).tocsr()
 
-def H_sparse (L, h, bc='o', sector='+'):
-    """Return the Hamiltonian in sparse CSR format"""
-    # Matrix elements in entry, row, column format
-    m_el = ([], [], [])
-    def extend_entry (*entries):
-        for i, e in enumerate(m_el):
-            e.extend(entries[i])
+def old_H_sparse (L, h, bc, sector):
+    """Return the Hamiltonian in sparse CSR format.
+    
+    Use the fact that the Hamiltonian has (L + 1) * (2 ** (L - 1)) or
+    L * (2 ** (L - 1)) elements for closed and open systems, respectively.
+    Diagonal is unique and bit flip at distinct entries is unique by Cantor's
+    diagonalization argument.
+    """
+    assert bc in ['c', 'o']
+    assert sector in ['+', '-']
+    # Build matrix in COO format
+    N_el = (L + (bc == 'c'))* (2 ** (L - 1)) 
+    data = np.zeros(N_el) 
+    rows = np.zeros(N_el)
+    cols = np.zeros(N_el)
+    n    = 0
+    
+    # This is the row index (but is equivalent to column index due to symmetry)
     for i in range(2 ** (L-1)):
-        extend_entry(*H_row(L, h, i, bc, sector))
-    H = coo_matrix((m_el[0], m_el[1:]), shape=(2**(L-1), 2**(L-1)))    
-    return H.tocsr()
+        k = ((2 * i) + (bits.poppar(i) ^ (sector == '-')))
+        # sign flips, sigma x
+        for j in range(L):
+            data[n] -= h * sign(bits.btest(k, j))
+        rows[n] = i
+        cols[n] = i
+        n += 1
+        # spiin flips, sigma z
+        for j in range(L - 1 + (bc == 'c')):
+            m = k ^ ((2 ** j) + (2 ** ((j + 1) % L)))
+            data[n] -= 1
+            rows[n] = i
+            cols[n] = (m - (m % 2)) // 2
+            n += 1
+    return coo_matrix((data, (rows, cols)), shape=(2**(L-1), 2**(L-1))).tocsr()
 
-def H_vec (L, h, v, bc='o', sector='+'):
+def old_H_vec (v, L, h, bc, sector):
     """Compute H|v> efficiently"""
+    assert bc in ['c', 'o']
+    assert sector in ['+', '-']
     w       = np.zeros(v.shape)
     indices = np.arange(2 ** (L-1))
+    
     # Relate sector index to full index
-    full = convert(indices, sector, 'full')
-    ### spin flips, sigma z
+    k = ((2 * indices) + (bits.vpoppar(indices) ^ (sector == '-')))
+    # sign flips, sigma x
     for i in range(L):
-        w -= h*v * (2 * (((full & (2 ** i)) << 1) == (full & (2 ** (i+1)))) - 1)
-    ### sign flips, sigma x
-    for i in range(L-1):
-        w[convert(full ^ (3 * (2 ** i)), 'full', sector)] -= v
-    if bc == 'c':
-        w[convert(full ^ ((2 ** (L-1))+1), 'full', sector)] -= v
+        w -= h * v * sign(bits.btest(k, i))
+    # spiin flips, sigma z
+    for i in range(L - 1 + (bc == 'c')):
+        m = k ^ ((2 ** i) + (2 ** ((i + 1) % L)))
+        m = (m - (m % 2)) // 2
+        w[m] -= v
     return w
 
-def L_vec (L, h, bc='o', sector='+'):
+def L_oper (L, h, bc, sector):
     """Return a Linear Operator wrapper to compute H|v>"""
     def H_vec_L_h (v):
-        return H_vec(L, h, v, bc, sector)
-    return LinearOperator((2**(L-1), 2**(L-1)), matvec=H_vec_L_h)
+        return H_vec(v, L, h, bc, sector)
+    assert bc in ['c', 'o']
+    assert sector in ['+', '-', 'f']
+    if sector == 'f':
+        N = L
+    else:
+        N = L - 1
+        
+    return LinearOperator((2**N, 2**N), matvec=H_vec_L_h)
 
-def H_dense (L, h, bc='o', sector='+'):
+def H_dense (L, h, bc, sector):
     """Return the dense Hamiltonian (mostly for testing)"""
-    H = np.zeros((2 ** (L-1), 2 ** (L-1)))
-    v = np.zeros(2 ** (L-1))
-    for i in range(2 ** (L-1)):
+    assert bc in ['c', 'o']
+    assert sector in ['+', '-', 'f']
+    if sector == 'f':
+        N = L
+    else:
+        N = L - 1
+    H = np.zeros((2 ** N, 2 ** N))
+    v = np.zeros(2 ** N)
+    
+    for i in range(2 ** N):
         v[i]    = 1
-        H[:, i] = H_vec(L, h, v , bc, sector)
+        H[:, i] = H_vec(v, L, h, bc, sector)
         v[i]    = 0
     return H
