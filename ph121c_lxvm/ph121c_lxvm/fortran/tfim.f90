@@ -45,7 +45,7 @@ contains
             sigma_z_z = -(L - 2 * popcnt(ieor(ishftc(i, 1, L), i)))
         else if (bc == 'o') then
             ! in open system, shift non-cyclically
-            sigma_z_z = -(L - 1 - 2 * popcnt(ieor(ibclr(ishft(i, 1), L), i)))
+            sigma_z_z = -(L - 1 - 2 * popcnt(ieor(ishft(i, -1), ibclr(i, L - 1))))
         else
             ! invalid boundary condition
             sigma_z_z = 0

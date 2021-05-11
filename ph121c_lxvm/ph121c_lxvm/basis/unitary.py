@@ -16,7 +16,7 @@ def Hadamard (L=1):
         gate = np.kron(gate, defn)
     return coef * gate
 
-def Ising (L=1, reverse=False):
+def Ising (L=1, inverse=False):
     """Return a permutation that relates the +/- sectors to the computational basis.
     
     Use convention that even parity belongs to + sector and odd parity to - sector.
@@ -26,7 +26,7 @@ def Ising (L=1, reverse=False):
         np.argwhere(diag == 0).ravel(),
         np.argwhere(diag == 1).ravel(),
     ))
-    if reverse:
+    if inverse:
         sort = sort.argsort()
     return sort
         

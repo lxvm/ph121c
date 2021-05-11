@@ -60,33 +60,6 @@ def H_vec (v, L, h, bc, sector):
     
     return tfim.h_x_vec(v, L, h, bc, sector, N_el)
 
-def old_old_H_sparse (L, h, bc, sector):
-    """Return the Hamiltonian in sparse CSR format.
-    
-    This used to be a bottleneck in the code because of COO format using lists.
-    """
-    assert bc in ['c', 'o']
-    assert sector in ['+', '-']
-    # Matrix elements in entry, row, column format
-    m_el = ([], [], [])
-    def append_entry (*entries):
-        for i, e in enumerate(m_el):
-            e.append(entries[i])
-            
-    for row in range(2 ** (L-1)):
-        # Relate sector index to full index
-        k = ((2 * row) + (bits.poppar(row) ^ (sector == '-')))
-        # sign flips, sigma x
-        diag = 0
-        for i in range(L):
-            diag -= h * sign(bits.btest(k, i) == bits.btest(k, i+1))
-        append_entry(diag, row, row)
-        # spiin flips, sigma z
-        for i in range(L - 1 + (bc == 'c')):
-            m = ((k ^ (2 ** i)) ^ (2 ** ((i + 1) % L)))
-            append_entry(-1 , row, (m - (m % 2)) // 2)
-    return coo_matrix((m_el[0], m_el[1:]), shape=(2**(L-1), 2**(L-1))).tocsr()
-
 def old_H_sparse (L, h, bc, sector):
     """Return the Hamiltonian in sparse CSR format.
     
@@ -103,8 +76,11 @@ def old_H_sparse (L, h, bc, sector):
     rows = np.zeros(N_el)
     cols = np.zeros(N_el)
     n    = 0
-    
-    # This is the row index (but is equivalent to column index due to symmetry)
+    # The sign flip functions could be optimized by removing the loop
+    # which can be done by counting the number of nonzero bits.
+    # Refer to the Fortran implementation for how to do this using only
+    # xor, bit shifts, cyclic bit shifts, and popcounts.
+    # These functions could be written in Python using bin() and bit intrinsics
     for i in range(2 ** (L-1)):
         k = ((2 * i) + (bits.poppar(i) ^ (sector == '-')))
         # sign flips, sigma x
@@ -141,7 +117,7 @@ def old_H_vec (v, L, h, bc, sector):
         w[m] -= v
     return w
 
-def L_oper (L, h, bc, sector):
+def H_oper (L, h, bc, sector):
     """Return a Linear Operator wrapper to compute H|v>"""
     def H_vec_L_h (v):
         return H_vec(v, L, h, bc, sector)

@@ -13,7 +13,7 @@ import numpy as np
 from . import bits, combinatorics
 
 
-def permutation (v, A, L, reverse=False):
+def permutation (v, A, L, inverse=False):
     """Return the permutation to use for sorting in Schmidt decomposition."""
     
     subsystem = np.sort(A)
@@ -21,14 +21,14 @@ def permutation (v, A, L, reverse=False):
         subsystem,
         np.sort([ i for i in range(L) if i not in subsystem ])
     ))
-    if reverse:
+    if inverse:
         perm = np.argsort(perm)
     return perm
     
-def permute (v, A, L, reverse=False):
+def permute (v, A, L, inverse=False):
     """Permute v by sorting sites in A to fastest-changing position."""
 
-    perm = permutation(v, A, L, reverse)
+    perm = permutation(v, A, L, inverse)
     indices = np.arange(v.size)
     # permute the bits of the computational basis via cycles to achieve the perm
     for cycle in combinatorics.cycles(perm):
@@ -43,7 +43,7 @@ def matricize (v, A, L):
     The subsystem A specifies the bit positions in the spin chain.
     This does not implement qudit systems or truncated systems (d == 2).
     """
-    return permute(L, A, v).reshape((2 ** len(A), 2 ** (L - len(A))), order='F')
+    return permute(v, A, L).reshape((2 ** len(A), 2 ** (L - len(A))), order='F')
     
 def vectorize (M, A, L):
     """Vectorize a matrix: the inverse of matricization.
@@ -52,7 +52,7 @@ def vectorize (M, A, L):
     The subsystem A specifies the bit positions in the spin chain.
     This does not implement qudit systems for d > 2.
     """
-    return permute(M.ravel(order='F'), A, L, reverse=True)
+    return permute(M.ravel(order='F'), A, L, inverse=True)
 
 def values (v, A, L):
     """Calculate the Schmidt values of v in subsystem A."""
