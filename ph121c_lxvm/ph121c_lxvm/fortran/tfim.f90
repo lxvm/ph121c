@@ -25,7 +25,10 @@ module tfim
         sigma_z_x, &
         sigma_x_x, &
         sigma_x_z_val, &
-        sigma_z_x_val
+        sigma_z_x_val, &
+        set_x_bounds,  &
+        convert_full_x,&
+        convert_sector_x
 
 contains
 
@@ -132,7 +135,7 @@ contains
                     w(ibchng(i, j)) = w(ibchng(i, j)) + v(i) * sigma_x_z_val(h)
                 end do
                 ! sign flips from sigma z
-                w(i) = sigma_z_z(i, L, bc)
+                w(i) = w(i) + sigma_z_z(i, L, bc) * v(i)
             end if
         end do
     end subroutine H_z_vec
@@ -194,7 +197,48 @@ contains
             elem = sigma_x_x(i, L, h)
         end if
     end subroutine H_x_mel
+    
+    pure subroutine set_x_bounds (lz, dim, L, bc, sector)
+        character,intent (in   ) :: sector, bc
+        integer,  intent (in   ) :: L
+        integer,  intent (  out) :: lz, dim
+        
+        if (bc == 'c') then
+            lz = L
+        else if (bc == 'o') then
+            lz = L - 1
+        end if
+        if (ior(sector == '+', sector == '-')) then
+            dim = 2 ** (L - 1)
+        else if (sector == 'f') then
+            dim = 2 ** L
+        end if
+    end subroutine set_x_bounds
+    
+    integer pure function convert_full_x (i, sector)
+        ! Convert indices from x sector basis to full basis
+        character,intent (in) :: sector
+        integer,  intent (in) :: i
+        
+        if (sector == '-') then
+            convert_full_x = ((2 * i) + ieor(poppar(i), 1))
+        else if (sector == '+') then
+            convert_full_x = ((2 * i) + poppar(i))
+        else if (sector == 'f') then
+            convert_full_x = i
+        end if
+    end function convert_full_x
 
+    pure subroutine convert_sector_x (i, sector)
+        ! Convert indices from x full basis to sector basis
+        character,intent (in   ) :: sector
+        integer,  intent (inout) :: i
+        
+        if (ior(sector == '+', sector == '-')) then
+            i = (i - mod(i, 2)) / 2
+        end if
+    end subroutine convert_sector_x
+    
     pure subroutine H_x_coo (elem, rows, cols, N, L, h, bc, sector)
         ! calculate COO format matrix elements of H in x basis
         ! sector == '+' or '-' calculates in a sector, 'f' does full basis
@@ -210,27 +254,12 @@ contains
         integer,  intent (  out) :: rows(0:(N - 1)), &
                                     cols(0:(N - 1))
         integer i, j, k, m, p, lz, dim
-        k    = 0
-        if (bc == 'c') then
-            lz = L
-        else if (bc == 'o') then
-            lz = L - 1
-        end if
-        if (ior(sector == '+', sector == '-')) then
-            dim = 2 ** (L - 1)
-        else if (sector == 'f') then
-            dim = 2 ** L
-        end if
+        k = 0
+        call set_x_bounds(lz, dim, L, bc, sector)
 
         do i = 0, (dim - 1)
             ! find index in full basis
-            if (sector == '-') then
-                p = ((2 * i) + ieor(poppar(i), 1))
-            else if (sector == '+') then
-                p = ((2 * i) + poppar(i))
-            else if (sector == 'f') then
-                p = i
-            end if
+            p = convert_full_x(i, sector)
             ! sign flips, sigma x
             elem(k) = sigma_x_x(p, L, h)
             rows(k) = i
@@ -239,9 +268,7 @@ contains
             ! spiin flips, sigma z
             do j = 0, (lz - 1)
                 m = ieor(ieor(p, 2 ** j), 2 ** mod(j + 1, L))
-                if (ior(sector == '+', sector == '-')) then
-                    m = (m - mod(m, 2)) / 2
-                end if
+                call convert_sector_x(m, sector)
                 elem(k) = sigma_z_x_val()
                 rows(k) = i
                 cols(k) = m
@@ -264,36 +291,19 @@ contains
         real(dp),  intent (in   ) :: v(0:(N - 1))
         real(dp),  intent (  out) :: w(0:(N - 1))
         integer i, j, m, p, lz, dim
-        if (bc == 'c') then
-            lz = L
-        else
-            lz = L - 1
-        end if
-        if (ior(sector == '+', sector == '-')) then
-            dim = 2 ** (L - 1)
-        else if (sector == 'f') then
-            dim = 2 ** L
-        end if
+        call set_x_bounds(lz, dim, L, bc, sector)
         w = 0
 
         do i = 0, (dim - 1)
             if (v(i) /= 0) then
                 ! find index in full basis
-                if (sector == '-') then
-                    p = ((2 * i) + ieor(poppar(i), 1))
-                else if (sector == '+') then
-                    p = ((2 * i) + poppar(i))
-                else if (sector == 'f') then
-                    p = i
-                end if
+                p = convert_full_x(i, sector)
                 ! sign flips from sigma x
-                w(i) = v(i) * sigma_x_x(p, L, h)
+                w(i) = w(i) + v(i) * sigma_x_x(p, L, h)
                 ! spiin flips from sigma z
                 do j = 0, (lz - 1)
                     m = ieor(ieor(p, 2 ** j), 2 ** mod(j + 1, L))
-                    if (ior(sector == '+', sector == '-')) then
-                        m = (m - mod(m, 2)) / 2
-                    end if
+                    call convert_sector_x(m, sector)
                     w(m) = w(m) + v(i) * sigma_z_x_val()
                 end do
             end if

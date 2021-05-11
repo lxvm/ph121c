@@ -82,7 +82,7 @@ class tfim_x_z_test_case (unittest.TestCase):
         self.check_sparse_dense_oper_consistent(
             tfim.x, 
             **self.params,
-            **dict(sector=['+', '-']),
+            **dict(sector=['+', '-', 'f']),
         )
         
     def test_z_x_interconsistent (self):
