@@ -25,7 +25,7 @@ def test_valid_scheme (r, L, d):
     """Tests whether a rank function is a valid mps approximation scheme."""
     prev_val = 1
     for i in range(L + 1):
-        if not (1 <= r(i) <= d * prev_val):
+        if not (1 <= r(i) <= min(prev_val, dim_mps(i, L, d))):
             return False
         prev_val = d * r(i)
     return True
@@ -93,12 +93,15 @@ class my_mps:
         
     def lower_rank (self, r):
         """Lower the rank of the MPS **IN PLACE**"""
-        assert test_valid_scheme(r, L, d)
+        assert test_valid_scheme(r, self.L, self.d)
         assert all(r(i + 1) <= self.r(i + 1) for i in range(self.L))
-
-        self.r = lambda i: r(i, self.L, self.d)
-        for i in range(L):
-            self.A[i] = self.A[i][:self.d * self.r(i), :r(i + 1)]
+        for i in range(self.L):
+            self.A[i] = self.A[i].reshape(
+                self.r(i), self.d * self.r(i + 1), order='F'
+            )[:r(i), :].reshape(
+                self.d * r(i), self.r(i + 1), order='F'
+            )[:, :r(i + 1)]
+        self.r = r
 
     def get_component (self, index):
         """Calculate a single component of the physical index.
@@ -111,9 +114,7 @@ class my_mps:
         coef  = np.ones(1).reshape(1, 1)
         
         for j, e in enumerate(index):
-            coef = coef @ self.A[j][
-                e * self.r(j) + np.arange(self.r(j))
-            ]
+            coef = coef @ self.A[j][e * self.r(j) + np.arange(self.r(j))]
         return coef
         
     def size (self):
@@ -132,4 +133,11 @@ class my_mps:
     def inner (self, B):
         """Take the inner product with another mps wavefunction."""
         assert isinstance(B, my_mps)
-        pass
+        assert self.L == B.L
+        assert self.d == B.d
+        
+        # collapse the first physical index
+        val = np.conj(np.transpose(B[0])) @ A[0]
+        # collapse the A_1 index
+        
+        

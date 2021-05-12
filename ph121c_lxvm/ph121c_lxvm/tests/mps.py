@@ -58,21 +58,25 @@ class mps_test_case (unittest.TestCase):
     """Test the basis.mps module."""
     def test_accuracy (self):
         """Check that the compression works for several systems."""
-        for d, L in product([2, 3, 4], [5, 6, 7, 8]):
+        for d, L in product([2, 3], [5, 6, 7, 8]):
             v = np.random.random(d ** L)
+            v = v / np.linalg.norm(v)
             def lossless (i):
                 return basis.mps.dim_mps(i, L, d)
             A = basis.mps.my_mps(v, lossless, L, d)
-            with self.subTest(name="Check lossless accuracy", d=d, L=L):
+            with self.subTest(name='Check lossless accuracy', d=d, L=L):
                 self.assertTrue(np.allclose(v, A.contract_bonds()))
-            with self.subTest(name='Test monotonic quality of approximation'):
-                norms = np.arange(d ** (L // 2), step=d)[::-1]
-                for i, chi in enumerate(norms):
-                    def rank (i, L, d=2):
-                        return max(1, min(chi, lossless(i)))
+            with self.subTest(name='Test monotonic quality of approximation', d=d, L=L):
+                ranks = np.arange(1 + d ** (L // 2), step=d)[::-1]
+                norms = np.zeros(ranks.size)
+                for i, chi in enumerate(ranks):
+                    def rank (i, x=chi):
+                        return max(1, min(x, lossless(i)))
                     A.lower_rank(rank)
                     norms[i] = np.inner(v, A.contract_bonds())
-                self.assertTrue(norms.argsort() == np.arange(norms.size)[::-1])
+                self.assertTrue(
+                    np.all(norms.argsort() == np.arange(norms.size)[::-1])
+                )
             
     
 if __name__ == '__main__':
