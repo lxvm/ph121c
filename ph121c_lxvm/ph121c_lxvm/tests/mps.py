@@ -2,14 +2,15 @@
 """
 
 import unittest
-from itertools import combinations
+from itertools import product, combinations
 
 import numpy as np
 
 from .. import basis, measure
 
 
-class mps_schmidt_decomposition (unittest.TestCase):
+class schmidt_test_case (unittest.TestCase):
+    """Test the basis.schmidt module."""
     
     def test_permute (self):
         """Check that the permutation and its inverse is the identity."""
@@ -18,8 +19,8 @@ class mps_schmidt_decomposition (unittest.TestCase):
             for r in range(1, L):
                 for c in combinations(range(L), r=r):
                     with self.subTest(L=L, r=r, c=c):
-                        w = basis.schmidt.permute(L, c, v)
-                        w = basis.schmidt.permute(L, c, w, reverse=True)
+                        w = basis.schmidt.permute(v, c, L)
+                        w = basis.schmidt.permute(w, c, L, inverse=True)
                         self.assertTrue(all(v == w))
     
     def test_matricization (self):
@@ -33,11 +34,11 @@ class mps_schmidt_decomposition (unittest.TestCase):
             for r in range(1, L):
                 for c in combinations(range(L), r=r):
                     with self.subTest(L=L, r=r, c=c):
-                        M = basis.schmidt.matricize(L, c, v)
+                        M = basis.schmidt.matricize(v, c, L)
                         self.assertTrue(
                             M.shape == (2 ** len(c), 2 ** (L - len(c)))
                         )
-                        w = basis.schmidt.vectorize(L, c, M)
+                        w = basis.schmidt.vectorize(M, c, L)
                         self.assertTrue(
                             w.shape in [(2**L, ), (2**L, 1)]
                         )
@@ -52,6 +53,27 @@ class mps_schmidt_decomposition (unittest.TestCase):
     def test_schmidt_truncation (self):
         """Test truncation of svd is correct"""
         return NotImplemented
-                        
+
+class mps_test_case (unittest.TestCase):
+    """Test the basis.mps module."""
+    def test_accuracy (self):
+        """Check that the compression works for several systems."""
+        for d, L in product([2, 3, 4], [5, 6, 7, 8]):
+            v = np.random.random(d ** L)
+            def lossless (i):
+                return basis.mps.dim_mps(i, L, d)
+            A = basis.mps.my_mps(v, lossless, L, d)
+            with self.subTest(name="Check lossless accuracy", d=d, L=L):
+                self.assertTrue(np.allclose(v, A.contract_bonds()))
+            with self.subTest(name='Test monotonic quality of approximation'):
+                norms = np.arange(d ** (L // 2), step=d)[::-1]
+                for i, chi in enumerate(norms):
+                    def rank (i, L, d=2):
+                        return max(1, min(chi, lossless(i)))
+                    A.lower_rank(rank)
+                    norms[i] = np.inner(v, A.contract_bonds())
+                self.assertTrue(norms.argsort() == np.arange(norms.size)[::-1])
+            
+    
 if __name__ == '__main__':
     unittest.main()

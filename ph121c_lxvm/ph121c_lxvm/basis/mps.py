@@ -2,7 +2,11 @@
 
 Conventional to use left-canonical MPS.
 For reference: https://arxiv.org/pdf/1008.3477.pdf.
+
+Other good explanations available here:
+https://tensornetwork.org/mps/
 """
+from itertools import product
 
 import numpy as np
 import scipy.sparse.linalg as sla
@@ -12,50 +16,20 @@ from .. import tests, tfim
 
 def dim_mps (i, L, d):
     """Calculate the maximal rank for an svd at bond index i in mps"""
-    if i <= (L + 1) / 2:
+    if i <= L / 2:
         return d ** i
     else:
-        return d ** (L + 1 - i)
+        return d ** (L - i)
     
 def test_valid_scheme (r, L, d):
     """Tests whether a rank function is a valid mps approximation scheme."""
     prev_val = 1
     for i in range(L + 1):
-        if not (1 <= r(i, L, d) <= d * prev_val):
+        if not (1 <= r(i) <= d * prev_val):
             return False
-        prev_val = d * r(i, L, d)
+        prev_val = d * r(i)
     return True
-
-# def index_mps (r, bonds, pos=None, d):
-#     """Calculate the index in the storage vector of selected bond indices.
-    
-#     Bonds needs to be a 1d array enumerating the desired bonds.
-#     Pos needs to be a 3d array with each row containing the desired indices,
-#     both physical and virtual, of the corresponding bond. If any physical or 
-#     virtual index is none, then a slice of that dimension is returned.
-#     """
-#     assert bonds.size == pos.shape[0]
-#     indices = []
-    
-#     for i, bond in enumerate(bonds):
-#         if pos[i] == None:
-#             indices.append(np.arange())
-#     return indices
-            
-# def tr_merge (s, w, r, d):
-#     """Truncates virtual index and merges the next available physical index."""
-#     index = np.repeat(np.arange(r), d) \
-#         + np.repeat(np.arange(0, d*r, r).reshape(d*r, 1), r, axis=0).ravel()
-#     return (s[:r, None] * w[:r, :]).reshape((r*d, w.shape[1] // d), order='F')[index, :]
-
-def regroup (w, d):
-    """Merges the next available physical index from columns to rows."""
-    assert (w.shape[1] % d == 0) and (w.shape[1] > 0)
-
-    index = np.repeat(np.arange(w.shape[0]), d) \
-        + w.shape[0] * np.repeat(np.arange(0, d)[:, None].T, w.shape[0], axis=0).ravel()
-    return w.reshape((w.shape[0] * d, w.shape[1] // d), order='F')[index, :]
-                      
+   
 def convert_vec_to_mps (v, r, L, d):
     """Return a MPS representation of a wavefunction."""
     assert v.size == d ** L
@@ -64,13 +38,12 @@ def convert_vec_to_mps (v, r, L, d):
     w    = v[:, None].T
 
     for i in range(L):
-        # shift columns to rows
-        w    = regroup(w, d)
+        # shift columns to rows, keeping the physical index contiguous
+        w    = w.reshape(w.shape[0] * d, w.shape[1] // d, order='F')
         a,s,w= np.linalg.svd(w, full_matrices=False)
         # truncate results
         A[i] = a[:, :r(i+1, L, d)]
         w    = s[:r(i+1, L, d), None] * w[:r(i+1, L, d), :]
-    print(w)
     return A
 
 class my_mps:
@@ -78,49 +51,85 @@ class my_mps:
     
     Ok with qudits already in the computational basis.
     """
-    def __init__ (self, v, r, L, d=2):
-        """Create an mps representation of vector with compression scheme."""
+    def __init__ (self, v, r, L, d, A=None):
+        """Create an mps representation of vector with compression scheme.
+        
+        v needs to be an ndarray of shape (d ** L, ) whose entries are already
+        sorted in the computational basis in the order (0, ..., 0), (0, ..., 1)
+        ... (d, ..., d).
+        r needs to be an integer function whose minimum is 1 and whose maximum
+        on the for inputs of 1 to L is the same as mps.dim_mps.
+        """
         # desired feature: argument: order=[perm(range(L))]
         # to construct the mps from a different order of the virtual indices
+        assert test_valid_scheme(r, L, d)
+        assert v.size == d ** L
         self.v = v
         self.d = d
-        self.r = r
         self.L = L
-        self.A = convert_vec_to_mps(v, r, L, d)
-
+        self.r = r
+        self.dim = lambda i: dim_mps(i, self.L, self.d)
+        if not A:
+            self.A = np.empty(L, dtype='object')
+            w = self.v[:, None].T
+            # Create the mps representation
+            for i in range(L):
+                # shift columns to rows, keeping the physical index contiguous
+                w    = w.reshape(w.shape[0] * self.d, w.shape[1] // d, order='F')
+                a,s,w= np.linalg.svd(w, full_matrices=False)
+                # truncate results
+                self.A[i] = a[:, :r(i+1)]
+                w    = s[:self.r(i + 1), None] * w[:self.r(i + 1), :]
+        else:
+            self.A = A
+            
     def contract_bonds (self):
         """Contract the bond indices and return the approximate physical vector."""
-        v = np.zeros(2 ** self.L)
+        v = np.zeros(self.d ** self.L)
         
-        for i in range(2 ** self.L):
-            v[i] = self.get_component(i)
+        for i, index in enumerate(product(np.arange(self.d), repeat=self.L)):
+            v[i] = self.get_component(np.array(index)[::-1])
         return v
         
-#     def lower_rank (self, r):
-#         """Return a new my_mps with lower rank."""
-#         assert 1 <= r < self.r
-#         return my_mps(
-#             self.v,
-#             self.L,
-#             r,
-#             self.d,
-#             self.A.reshape((self.A.size // self.d, self.d))[:, :r].ravel(),
-#         )
-    
-    def get_component (self, i):
-        """Calculate a single component of the physical index."""
-        assert 0 <= i <= ((2 ** self.L) - 1)
-        # the indices of self.A are big-endian
-        # the computational basis of integers is little-endian
-        index = bin(i)[:1:-1].ljust(self.L, '0')
+    def lower_rank (self, r):
+        """Lower the rank of the MPS **IN PLACE**"""
+        assert test_valid_scheme(r, L, d)
+        assert all(r(i + 1) <= self.r(i + 1) for i in range(self.L))
+
+        self.r = lambda i: r(i, self.L, self.d)
+        for i in range(L):
+            self.A[i] = self.A[i][:self.d * self.r(i), :r(i + 1)]
+
+    def get_component (self, index):
+        """Calculate a single component of the physical index.
+        
+        Index is an ndarray of length L with the physical indices in big-endian
+        order and with integer entries ranging from 0 to d - 1
+        """
+        assert index.size == self.L
+        assert np.all(0 <= index) and np.all(index < self.d)
         coef  = np.ones(1).reshape(1, 1)
         
         for j, e in enumerate(index):
             coef = coef @ self.A[j][
-                (1 + int(e)) * np.arange(min(
-                    self.r(j,     self.L, self.d),
-                    self.r(j + 1, self.L, self.d)
-                ))
+                e * self.r(j) + np.arange(self.r(j))
             ]
         return coef
         
+    def size (self):
+        """Return total number of coefficients."""
+        return sum(e.size for e in self.A)
+    
+    def shapes (self):
+        """Return a list of the shapes of the mps representations."""
+        return [ e.shape for e in self.A ]
+    
+    def oper (self, sites, oper):
+        """Apply an operator to any number of sites **IN PLACE**."""
+        for i in sites:
+            self.A[i] = np.kron(np.eye(self.r(i, self.L,)), oper) @ self.A[i]
+            
+    def inner (self, B):
+        """Take the inner product with another mps wavefunction."""
+        assert isinstance(B, my_mps)
+        pass
