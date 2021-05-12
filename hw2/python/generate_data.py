@@ -18,6 +18,7 @@ def main ():
     for oper_params in tests.tfim.param_sweep(
         L = L, h = h, bc= bc,
     ):
+        print(oper_params)
         tfim.data.obtain(
             oper=tfim.z.H_sparse,
             oper_params=oper_params,
@@ -27,7 +28,7 @@ def main ():
                 'which' : 'BE',
             },
             batch=True,
-        ) 
+        )
 
 if __name__ == '__main__':
     main()

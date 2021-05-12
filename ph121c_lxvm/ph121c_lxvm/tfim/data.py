@@ -6,13 +6,17 @@ Attributes about the job such as simulation parameters are stored as metadata.
 The main interface provided by this module is the `obtain` function.
 """
 
+import os
 import time
 from hashlib import md5
 
 from ..data import hdf5
 
 
-ARCHIVE = '/home/lxvm/Documents/repos/ph121c/data/main.hdf5'
+ARCHIVE = os.path.realpath(__file__).replace(
+    'ph121c_lxvm/ph121c_lxvm/tfim/data.py',
+    'data/main.hdf5'
+)
 
 EXIT_MODES = ['found', 'ran_job']
 
@@ -41,10 +45,10 @@ def job_name (oper, oper_params, solver, solver_params):
     """Make a hdf5 path for a job using a unique hash, e.g. /<hash>."""
     return '/'.join(['',
         hashify(dict(
-            oname=oper.__module__,
-            omod=oper.__name__,
-            sname=solver.__module__,
-            smod=solver.__name__,
+            omod=oper.__module__,
+            oname=oper.__name__,
+            smod=solver.__module__,
+            sname=solver.__name__,
             **oper_params,
             **solver_params,
         )).hex(),

@@ -3,13 +3,13 @@
 
 import numpy as np
 
-from . import bits
 
 def cycles (perm):
     """Return a list of cycles representing the permutation."""
     index = list(range(perm.size))
     assert np.all(index == np.sort(perm)), 'permutation must be zero-indexed'
     cycles = []
+    
     for i in index:
         cycle = [i]
         while perm[i] not in cycle:
