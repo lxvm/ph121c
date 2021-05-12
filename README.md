@@ -11,6 +11,14 @@ create a virtual environment with the exact packages
 - Install the local package within the virtual environment, i.e. with:
 `> cd ph121c_lxvm; python setup.py develop`
 
+Advanced note: the installation builds a Fortran module using whatever compiler
+is available on your machine (i.e. `gfortran`, `ifort`), so if you have no
+Fortran compiler, the code won't build.
+You can also override the default compiler by appending
+`build_ext --fcompiler=<gnu95, intelem, ...>` to the argument list.
+Equivalently, add `[build_ext] \n fcompiler = <...>` to `setup.cfg`.
+Look for more help with `python setup.py build_ext --help[-fcompiler]`.
+
 I believe that Intel Python is also available in the `intel` channel on `conda`.
 Note this is specific to my Python code and if I use Fortran anywhere then
 a Fortran compiler is necessary, and I am using those provided by Intel.
@@ -58,9 +66,11 @@ equivalent, I imagine that there begin the typical difficulties one
 experiences in Fortran related to compiling and linking libraries.
 
 There are many microscopic bugs that this introduces: one about certain parts
-of the Fortran code needing to be understood by C (such as '**'), or 
+of the Fortran code needing to be understood by C (such as '\*\*'), or 
 how to actually distribute the Fortran code as a Python package,
 which for me led to an [error](https://github.com/dmlc/xgboost/issues/820).
+That only occured when using `pip install -e .` but `python setup.py develop`
+works.
 
 The recommended way to interface Fortran and Python is actually via Cython.
 What `f2py` does in the background anyway is to port the Fortran to C.
@@ -78,6 +88,10 @@ how to interface Fortran to C and C to Python.
 
 I can't assure you that my Fortran code is really portable, but hopefully it
 works if you have an Intel compiler.
+
+Update: I've also fixed the Fortran code so that it compiles with `gfortran`
+version 10.2 (by accident, because it happened to be installed with R).
+The Intel compiler has a number of extensions
 
 #### Brilliant
 

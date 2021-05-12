@@ -77,7 +77,30 @@ class mps_test_case (unittest.TestCase):
                 self.assertTrue(
                     np.all(norms.argsort() == np.arange(norms.size)[::-1])
                 )
-            
+                
+    def test_inner_consistent (self):
+        """Compares the inner product calculated two ways.
+        
+        The first way is by contracting all of the bond indices.
+        The second way is by performing an mps inner product.
+        """
+        for d, L in product([2, 3], [5, 6, 7, 8]):
+            v = np.random.random(d ** L)
+            v = v / np.linalg.norm(v)
+            def lossless (i):
+                return basis.mps.dim_mps(i, L, d)
+            A = basis.mps.my_mps(v, lossless, L, d)
+            self.assertTrue(
+                np.allclose(np.inner(v, v), A.inner(A))
+            )
+    
+    def test_local_oper_consistent (self):
+        """Test expectation value of a local operator two ways.
+        
+        The first way is by calculating the operator as a matrix-vector product.
+        The second way is by performing an mps inner product.
+        """
+        pass
     
 if __name__ == '__main__':
     unittest.main()

@@ -128,16 +128,20 @@ class my_mps:
     def oper (self, sites, oper):
         """Apply an operator to any number of sites **IN PLACE**."""
         for i in sites:
-            self.A[i] = np.kron(np.eye(self.r(i, self.L,)), oper) @ self.A[i]
+            self.A[i] = np.kron(np.eye(oper, self.r(i))) @ self.A[i]
             
     def inner (self, B):
         """Take the inner product with another mps wavefunction."""
         assert isinstance(B, my_mps)
         assert self.L == B.L
         assert self.d == B.d
+        val = self.A[0]
         
-        # collapse the first physical index
-        val = np.conj(np.transpose(B[0])) @ A[0]
-        # collapse the A_1 index
+        for i in range(self.L - 1):
+            # collapse the physical index
+            val = np.conj(np.transpose(B.A[i])) @ val
+            # collapse the A_i index
+            val = np.kron(np.eye(self.d), val) @ self.A[i + 1]
+        return np.conj(np.transpose(B.A[self.L - 1])) @ val
         
         

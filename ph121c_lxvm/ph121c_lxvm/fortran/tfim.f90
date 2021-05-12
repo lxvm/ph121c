@@ -71,10 +71,7 @@ contains
         end if
     end function sigma_x_z
 
-    pure elemental subroutine H_z_mel (elem, i, j, L, h, bc)
-        ! In Fortran, this acts elementally on the i, j arrays
-        ! In f2py, this isn't recognized so only use this one at a time
-        ! So in Fortran, passing i = (/0:(2**L)-1:1/), j = i would return the diagonal
+    pure subroutine H_z_mel (elem, i, j, L, h, bc)
         character,intent (in   ) :: bc
         integer,  intent (inout) :: i, j
         integer,  intent (in   ) :: L
@@ -105,7 +102,7 @@ contains
             do j = 0, L - 1
                 elem(k) = sigma_x_z_val(h)
                 rows(k) = i
-                cols(k) = ibchng(i, j)
+                cols(k) = ieor(i, 2 ** j)
                 k = k + 1
             end do
             ! sign flips, sigma z
@@ -132,7 +129,7 @@ contains
             if (v(i) /= 0) then
                 ! spin flips from sigma x
                 do j = 0, (L-1)
-                    w(ibchng(i, j)) = w(ibchng(i, j)) + v(i) * sigma_x_z_val(h)
+                    w(ieor(i, 2 ** j)) = w(ieor(i, 2 ** j)) + v(i) * sigma_x_z_val(h)
                 end do
                 ! sign flips from sigma z
                 w(i) = w(i) + sigma_z_z(i, L, bc) * v(i)
@@ -152,13 +149,16 @@ contains
         
         if (popcnt(ieor(i, j)) == 2) then
             if (bc == 'c') then
-                if (popcnt(ieor(ishftc(ieor(i, j), 1, L), ieor(i, j))) == 1) then
+                ! or just check ieor(ishftc(ieor(i, j), 1, L), ieor(i, j)) /= 0
+                ! popcnt(ieor(ishftc(ieor(i, j), 1, L), ieor(i, j))) == 1
+                if (ieor(ishftc(ieor(i, j), 1, L), ieor(i, j)) /= 0) then
                     sigma_z_x = -1
                 else
                     sigma_z_x = 0
                 end if
             else if (bc == 'o') then
-                if (popcnt(ieor(ishft(ieor(i, j), 1), ieor(i, j))) == 1) then
+                ! popcnt(ieor(ishft(ieor(i, j), 1), ieor(i, j))) == 1
+                if (ieor(ishft(ieor(i, j), 1), ieor(i, j)) /= 0) then
                     sigma_z_x = -1
                 else
                     sigma_z_x = 0
@@ -182,9 +182,7 @@ contains
         sigma_x_x = -h * (L - 2 * popcnt(i))
     end function sigma_x_x
     
-    pure elemental subroutine H_x_mel (elem, i, j, L, h, bc)
-        ! In Fortran, this acts elementally on the i, j arrays
-        ! In f2py, this isn't recognized so only use this one at a time
+    pure subroutine H_x_mel (elem, i, j, L, h, bc)
         character,intent (in   ) :: bc
         integer,  intent (inout) :: i, j
         integer,  intent (in   ) :: L
@@ -208,7 +206,7 @@ contains
         else if (bc == 'o') then
             lz = L - 1
         end if
-        if (ior(sector == '+', sector == '-')) then
+        if ((sector == '+') .or. (sector == '-')) then
             dim = 2 ** (L - 1)
         else if (sector == 'f') then
             dim = 2 ** L
@@ -234,7 +232,7 @@ contains
         character,intent (in   ) :: sector
         integer,  intent (inout) :: i
         
-        if (ior(sector == '+', sector == '-')) then
+        if ((sector == '+') .or. (sector == '-')) then
             i = (i - mod(i, 2)) / 2
         end if
     end subroutine convert_sector_x
