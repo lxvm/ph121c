@@ -24,11 +24,7 @@ class schmidt_test_case (unittest.TestCase):
                         self.assertTrue(all(v == w))
     
     def test_matricization (self):
-        """Check that matricization and vectorization is the identity.
-        
-        Construction should follow left-canonical MPS.
-        See: https://arxiv.org/pdf/1008.3477.pdf.
-        """
+        """Check that matricization and vectorization is the identity."""
         for L in [3, 4, 5, 6, 7]:
             v = np.random.random(2**L)
             for r in range(1, L):

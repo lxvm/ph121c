@@ -43,7 +43,7 @@ def matricize (v, A, L):
     The subsystem A specifies the bit positions in the spin chain.
     This does not implement qudit systems or truncated systems (d == 2).
     """
-    return permute(v, A, L).reshape((2 ** len(A), 2 ** (L - len(A))), order='F')
+    return permute(v, A, L, inverse=True).reshape((2 ** len(A), 2 ** (L - len(A))), order='F')
     
 def vectorize (M, A, L):
     """Vectorize a matrix: the inverse of matricization.
@@ -52,7 +52,7 @@ def vectorize (M, A, L):
     The subsystem A specifies the bit positions in the spin chain.
     This does not implement qudit systems for d > 2.
     """
-    return permute(M.ravel(order='F'), A, L, inverse=True)
+    return permute(M.ravel(order='F'), A, L, inverse=False)
 
 def values (v, A, L):
     """Calculate the Schmidt values of v in subsystem A."""
