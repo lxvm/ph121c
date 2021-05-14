@@ -5,5 +5,4 @@ __all__ = [
     'bits',
 ]
 
-for module in __all__:
-    from module import *
+from . import *
