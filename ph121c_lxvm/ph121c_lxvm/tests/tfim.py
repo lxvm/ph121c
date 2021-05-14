@@ -1,4 +1,8 @@
 """Test interfaces in the tfim subpackage using unittest.
+
+Modules and procedures tested:
+x, y: all backends in fortran
+data: obtain, and by extension the data.hdf5 module
 """
 
 import os

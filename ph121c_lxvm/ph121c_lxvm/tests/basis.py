@@ -1,12 +1,22 @@
-"""Test matricization, matrix product states, and tensor networks.
+"""Test procedures made available by ph121c_lxvm.basis subpackage.
+
+Modules and procedures/classes/methods tested:
+schmidt: permute, matricize, vectorize
+bits:    swap
+
+Untested (but otherwise verified) procedures:
+bits: poppar, vpoppar, Ising_parity_lookup, btest
+combinatorics: cycles
+unitary: Ising, Hadamard
 """
 
 import unittest
-from itertools import product, combinations
+from itertools import combinations
 
 import numpy as np
 
-from .. import basis, measure
+from .. import basis
+
 
 
 class schmidt_test_case (unittest.TestCase):
@@ -50,16 +60,16 @@ class schmidt_test_case (unittest.TestCase):
         """Test truncation of svd is correct"""
         return NotImplemented
 
-class mps_test_case (unittest.TestCase):
+class tensor_test_case (unittest.TestCase):
     """Test the basis.mps module."""
-    def test_accuracy (self):
+    def test_mps_accuracy (self):
         """Check that the compression works for several systems."""
         for d, L in product([2, 3], [5, 6, 7, 8]):
             v = np.random.random(d ** L)
             v = v / np.linalg.norm(v)
             def lossless (i):
-                return basis.mps.dim_mps(i, L, d)
-            A = basis.mps.my_mps(v, lossless, L, d)
+                return basis.tensor.dim_mps(i, L, d)
+            A = basis.tensor.mps(v, lossless, L, d)
             with self.subTest(name='Check lossless accuracy', d=d, L=L):
                 self.assertTrue(np.allclose(v, A.contract_bonds()))
             with self.subTest(name='Test monotonic quality of approximation', d=d, L=L):
@@ -74,7 +84,7 @@ class mps_test_case (unittest.TestCase):
                     np.all(norms.argsort() == np.arange(norms.size)[::-1])
                 )
                 
-    def test_inner_consistent (self):
+    def test_mps_inner_consistent (self):
         """Compares the inner product calculated two ways.
         
         The first way is by contracting all of the bond indices.
@@ -84,8 +94,8 @@ class mps_test_case (unittest.TestCase):
             v = np.random.random(d ** L)
             v = v / np.linalg.norm(v)
             def lossless (i):
-                return basis.mps.dim_mps(i, L, d)
-            A = basis.mps.my_mps(v, lossless, L, d)
+                return basis.tensor.dim_mps(i, L, d)
+            A = basis.tensor.mps(v, lossless, L, d)
             self.assertTrue(
                 np.allclose(np.inner(v, v), A.inner(A))
             )

@@ -3,7 +3,7 @@ __all__ = [
     'schmidt',
     'unitary',
     'bits',
-    'mps',
 ]
 
-from . import *
+for module in __all__:
+    from module import *

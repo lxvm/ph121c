@@ -38,7 +38,6 @@ Refer to the docstrings for more details.
 __all__ = [
     'z',
     'x',
-    'data',
 ]
 
 from . import *
