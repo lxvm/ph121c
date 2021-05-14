@@ -16,5 +16,6 @@ __all__ = [
     'mpo',
 ]
 
+from .utils import *
 from .mps import *
 from .mpo import *

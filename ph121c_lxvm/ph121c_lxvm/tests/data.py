@@ -9,6 +9,9 @@ import unittest
 from tempfile import mkstemp
 from itertools import combinations
 
+import scipy.sparse.linalg as sla
+
+from .  import tfim_sweep
 from .. import data, tfim
 
     
@@ -43,10 +46,10 @@ class jobs_test_case (unittest.TestCase):
         """Check naming is unique and repeatable"""
         for solver_params in self.solver_params:
             for oper_params_tuple in zip(
-                *[ param_sweep(**p) for p in self.oper_params ]
+                *[ tfim_sweep(**p) for p in self.oper_params ]
             ):
                 names = [
-                    data.job_name(
+                    data.jobs.job_name(
                         self.oper,   oper_params,
                         self.solver, solver_params,
                     ) 
@@ -63,7 +66,7 @@ class jobs_test_case (unittest.TestCase):
     def test_hdf5_interface (self):
         """Make sure reading and writing to archive works."""
         for solver_params in self.solver_params:
-            for oper_params in param_sweep(**self.oper_params[0]):
+            for oper_params in tfim_sweep(**self.oper_params[0]):
                 job = [self.oper, oper_params, self.solver, solver_params]
                 with self.subTest(name='calculates new dataset on first time'):
                     _ = data.jobs.obtain(

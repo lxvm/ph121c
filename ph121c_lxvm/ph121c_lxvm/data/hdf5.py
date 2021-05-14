@@ -20,6 +20,7 @@ Metadata is ignored in the current implementation of `find` but could be added.
 
 import h5py
 
+
 def find (path, archive):
     """Return requested file (will raise error if not there)."""
     with h5py.File(archive, 'r') as f:

@@ -11,21 +11,9 @@ import numpy as np
 import scipy.linalg as la
 import scipy.sparse.linalg as sla
 
+from .  import tfim_sweep
 from .. import tfim, basis
-
-
-def param_sweep (
-    L  = np.arange(4, 11, 2),
-    h  = np.array([0.3, 1.0, 1.7]),
-    bc = np.array(['o', 'c']),
-    **kwargs
-):
-    """Generate parameter values to sweep over"""
-    keys = ['L', 'h', 'bc']
-    keys.extend(kwargs.keys())
-    for values in product(L, h, bc, *kwargs.values()):
-        yield { k : v for k, v in zip(keys, values) }
-         
+    
             
 class x_z_test_case (unittest.TestCase):
     """Test that all the Hamiltonians are consistent."""
@@ -37,7 +25,7 @@ class x_z_test_case (unittest.TestCase):
         )
     def check_sparse_dense_oper_consistent (self, module, **kwargs):
         """Check matrix elements match using dense and sparse methods."""
-        for params in param_sweep(**kwargs):
+        for params in tfim_sweep(**kwargs):
             dense  = module.H_dense(**params)
             sparse = module.H_sparse(**params)
             oper   = module.H_oper(**params)
@@ -89,7 +77,7 @@ class x_z_test_case (unittest.TestCase):
         
     def test_z_x_interconsistent (self):
         """Check that the matrices produced by x and z are a change of basis."""
-        for params in param_sweep(**self.params):
+        for params in tfim_sweep(**self.params):
             with self.subTest(name='compare:z_elem==x_elem', **params):
                 # get H_x in the full basis
                 xf = tfim.x.H_dense(sector='f', **params)
