@@ -13,7 +13,7 @@ from scipy.sparse import coo_matrix
 from scipy.sparse.linalg import LinearOperator
 
 from ..basis   import bits
-from ..fortran import tfim
+from ..fortran import tfim_z
 
 
 sign = lambda x: ((2 * x) - 1)
@@ -23,7 +23,7 @@ def H_sparse (L, h, bc):
     assert bc in ['c', 'o']
     N_el = (L + 1) * (2 ** L)
 
-    data, rows, cols = tfim.h_z_coo(N_el, L, h, bc)     
+    data, rows, cols = tfim_z.h_coo(N_el, L, h, bc)     
     return coo_matrix((data, (rows, cols)), shape=(2**L, 2**L)).tocsr()
 
 def H_vec (v, L, h, bc):
@@ -31,7 +31,7 @@ def H_vec (v, L, h, bc):
     assert bc in ['c', 'o']
     N_el = 2 ** L
     
-    return tfim.h_z_vec(v, L, h, bc, N_el)
+    return tfim_z.h_vec(v, L, h, bc, N_el)
 
 def old_H_sparse (L, h, bc):
     """Return the Hamiltonian in sparse CSR format.
