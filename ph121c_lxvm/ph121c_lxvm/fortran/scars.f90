@@ -54,7 +54,7 @@ contains
         end if
     end function sz_k_par
 
-    real(dp) pure function sz_k_diag (i, L, k)
+    integer pure function sz_k_diag (i, L, k)
         ! k-site sigma z contribution to Hamiltonian in z basis
         integer,  intent (in) :: i, L, k
         sz_k_diag = L - (2 * popcnt(sz_k_par(i, L, k, 0)))
@@ -71,8 +71,7 @@ contains
         complex(dp),intent (in   ) :: v(0:(N - 1))
         complex(dp),intent (  out) :: w(0:(N - 1))
         complex(dp) cj0, cj1, cjj
-        real(dp) zj0, zj1, zj2
-        integer i, j, m
+        integer i, j, m, zj0, zj1, zj2
         logical bj0, bj1
         w = 0
         
