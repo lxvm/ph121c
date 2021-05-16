@@ -225,7 +225,11 @@ contains
                     m = ieor(i, 2 ** j)
                     w(m) = w(m) + v(i) * sx_1_val(hx(j))
                     ! sign flips from 1-site sigma z
-                    w(i) = w(i) + v(i) * sz_1_val(hz(j))
+                    if (btest(i, j)) then
+                        w(i) = w(i) - v(i) * sz_1_val(hz(j))
+                    else
+                        w(i) = w(i) + v(i) * sz_1_val(hz(j))
+                    end if
                 end do
                 ! sign flips from 2-site sigma z
                 w(i) = w(i) + v(i) * sz_2_diag(i, L, bc)

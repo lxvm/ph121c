@@ -1,6 +1,8 @@
 """Provides Hamiltonians for the toy Rydberg atom model.
 """
 
+from itertools import product
+
 import numpy as np
 from scipy.sparse.linalg import LinearOperator
 
@@ -30,7 +32,7 @@ def H_dense (L, O):
     return H
 
 def H_kron (L, O):
-    """Build the dense Hamiltonian as a Kronecker product (mostly for testing.)"""
+    """Build the dense Hamiltonian as a Kronecker product (mostly for testing)."""
     terms = []
     sx = np.array([[0, 1],  [1,  0]])
     sy = np.array([[0,-1j], [1j, 0]])
@@ -44,54 +46,10 @@ def H_kron (L, O):
         # 1-local sz term
         terms.append(mpo(L, d=2))
         terms[-1][(i + 2) % L] = sz / 4
-        # sx sx sz term
-        terms.append(mpo(L, d=2))
-        terms[-1][i] = - sx / 4
-        terms[-1][(i + 1) % L] = sx
-        terms[-1][(i + 2) % L] = sz
-        # sx sy sz term
-        terms.append(mpo(L, d=2))
-        terms[-1][i] = - sx / 4
-        terms[-1][(i + 1) % L] = sy
-        terms[-1][(i + 2) % L] = sz
-        # sx sx sz term
-        terms.append(mpo(L, d=2))
-        terms[-1][i] = - sx / 4
-        terms[-1][(i + 1) % L] = sx
-        terms[-1][(i + 2) % L] = sz
-        # sx sz sz term
-        terms.append(mpo(L, d=2))
-        terms[-1][i] = - sx / 4
-        terms[-1][(i + 1) % L] = sz
-        terms[-1][(i + 2) % L] = sz
-        # sy sx sz term
-        terms.append(mpo(L, d=2))
-        terms[-1][i] = - sy / 4
-        terms[-1][(i + 1) % L] = sx
-        terms[-1][(i + 2) % L] = sz
-        # sy sy sz term
-        terms.append(mpo(L, d=2))
-        terms[-1][i] = - sy / 4
-        terms[-1][(i + 1) % L] = sy
-        terms[-1][(i + 2) % L] = sz
-        # sy sz sz term
-        terms.append(mpo(L, d=2))
-        terms[-1][i] = - sy / 4
-        terms[-1][(i + 1) % L] = sz
-        terms[-1][(i + 2) % L] = sz
-        # sz sx sz term
-        terms.append(mpo(L, d=2))
-        terms[-1][i] = - sz / 4
-        terms[-1][(i + 1) % L] = sx
-        terms[-1][(i + 2) % L] = sz
-        # sz sy sz term
-        terms.append(mpo(L, d=2))
-        terms[-1][i] = - sz / 4
-        terms[-1][(i + 1) % L] = sy
-        terms[-1][(i + 2) % L] = sz
-        # sz sz sz term
-        terms.append(mpo(L, d=2))
-        terms[-1][i] = - sz / 4
-        terms[-1][(i + 1) % L] = sz
-        terms[-1][(i + 2) % L] = sz
+        for a, b in product([sx, sy, sz], repeat=2):
+            # a b sz term
+            terms.append(mpo(L, d=2))
+            terms[-1][i] = - a / 4
+            terms[-1][(i + 1) % L] = b
+            terms[-1][(i + 2) % L] = sz
     return sum(e.toarray() for e in terms)

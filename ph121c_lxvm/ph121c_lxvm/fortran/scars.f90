@@ -42,14 +42,15 @@ contains
 
     !!! Define Pauli operator
 
-    integer recursive pure function sz_k_par (i, L, k, m)
+    recursive pure function sz_k_par (i, L, k, m) result (z)
         ! Returns an integer where bit j has the k-site parity
         ! of bit positions j - m to j - m + k - 1 (bits numbered right to left)
         integer, intent (in) :: i, L, k, m
+        integer z
         if (k > 1) then
-            sz_k_par = ieor(sz_k_par(i, L, k - 1, m), ishftc(i, 1 + m - k, L))
+            z = ieor(sz_k_par(i, L, k - 1, m), ishftc(i, 1 + m - k, L))
         else
-            sz_k_par = i
+            z = i
         end if
     end function sz_k_par
 
@@ -69,10 +70,10 @@ contains
         real(dp),   intent (in   ) :: O
         complex(dp),intent (in   ) :: v(0:(N - 1))
         complex(dp),intent (  out) :: w(0:(N - 1))
-        complex(dp) cj_, c_j, cjj
-        real(dp) z_jj, zj_j, z__j
+        complex(dp) cj0, cj1, cjj
+        real(dp) zj0, zj1, zj2
         integer i, j, m
-        logical bj_, b_j
+        logical bj0, bj1
         w = 0
         
         do i = 0, ((2 ** L) - 1)
@@ -82,63 +83,75 @@ contains
                 ! Off-diagonal terms (3-site and transverse 1-site sigma x)
                 do j = 0, (L - 1)
                     ! Find states of sites j and j + 1
-                    bj_ = btest(i, j)
-                    b_j = btest(i, mod(j + 1, L))
+                    bj0 = btest(i, j)
+                    bj1 = btest(i, mod(j + 1, L))
                     ! Find signs of sz terms at the 3 sites
-                    z__j = 2 - poppar(ieor(i, 2 ** mod(j + 2, L)))
-                    zj_j = 2 - poppar(ieor(i, (2 ** j) + (2 ** mod(j + 2, L))))
-                    z_jj = 2 - poppar(&
-                        ieor(i, (2 ** mod(j + 1, L)) + (2 ** mod(j + 2, L))))
+                    if (bj0) then
+                        zj0 = -1
+                    else
+                        zj0 = 1
+                    end if
+                    if (bj1) then
+                        zj1 = -1
+                    else
+                        zj1 = 1
+                    end if
+                    if (btest(i, mod(j + 2, L))) then
+                        zj2 = -1
+                    else
+                        zj2 = 1
+                    end if
+                    
                     ! Terms of Hamming-distance 1 at position j
                     m = ieor(i, 2 ** j)
                     ! sx sz sz term
-                    cj_ = 1
+                    cj0 = 1
                     ! sy sz sz term
-                    if (bj_) then
-                        cj_ = cj_ + Im
+                    if (bj0) then
+                        cj0 = cj0 - Im
                     else
-                        cj_ = cj_ - Im
+                        cj0 = cj0 + Im
                     end if
                     ! Set value (including the transverse 1-site sigma x term)
-                    w(m) = w(m) + v(i) * (O / 2 - cj_ * z_jj / 4)
+                    w(m) = w(m) + v(i) * ((O / 2) - cj0 * zj1 * zj2 / 4)
                     
                     ! Terms of Hamming-distance 1 at position j + 1
                     m = ieor(i, 2 ** mod(j + 1, L))
                     ! sz sx sz term
-                    c_j = 1
+                    cj1 = 1
                     ! sz sy sz term
-                    if (b_j) then
-                        c_j = c_j + Im
+                    if (bj1) then
+                        cj1 = cj1 - Im
                     else
-                        c_j = c_j - Im
+                        cj1 = cj1 + Im
                     end if
                     ! Set value
-                    w(m) = w(m) + v(i) * -c_j * zj_j / 4
-                    
+                    w(m) = w(m) + v(i) * (-cj1) * zj0 * zj2 / 4
+
                     ! Terms of Hamming distance 2 at positions j, j + 1
                     m = ieor(ieor(i, 2 ** j), 2 ** mod(j + 1, L))
                     ! sx sx sz term
                     cjj = 1
                     ! sx sy sz term
-                    if (b_j) then
-                        cjj = cjj + Im
-                    else
+                    if (bj1) then
                         cjj = cjj - Im
+                    else
+                        cjj = cjj + Im
                     end if
                     ! sy sx sz term
-                    if (bj_) then
-                        cjj = cjj + Im
-                    else
+                    if (bj0) then
                         cjj = cjj - Im
+                    else
+                        cjj = cjj + Im
                     end if
                     ! sy sy sz term
-                    if (bj_ .eqv. b_j) then
+                    if (bj0 .eqv. bj1) then
                         cjj = cjj - 1
                     else
                         cjj = cjj + 1
                     end if
                     ! Set value
-                    w(m) = w(m) + v(i) * -cjj * z__j / 4
+                    w(m) = w(m) + v(i) * (-cjj) * zj2 / 4
                 end do
             end if
         end do

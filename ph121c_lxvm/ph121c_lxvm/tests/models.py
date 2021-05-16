@@ -1,8 +1,8 @@
 """Test interfaces in the models subpackage using unittest.
 
 Modules and procedures tested:
-tfim: x, y: all backends in fortran
-scars: all backends in Fortran
+tfim: x, z: all backends in fortran
+scars: H_kron, all backends in Fortran
 """
 
 import unittest
@@ -35,6 +35,10 @@ class tfim_test_case (unittest.TestCase):
                 name=module.__name__ + ':dense_elem==sparse_elem',
                 **params
             ):
+                # Check real and symmetric
+                self.assertTrue(
+                    np.all(dense == dense.T)
+                )
                 # Check elementwise equality
                 self.assertTrue(
                     np.allclose(dense, sparse.toarray())
@@ -115,6 +119,16 @@ class tfim_test_case (unittest.TestCase):
             reg = module.H_dense(h=h, **p)
             long= module.H_dense(h=h, hz=0.0, **p)
             mbl = module.H_dense(h=h*np.ones(p['L']), hz=np.zeros(p['L']), **p)
+            with self.subTest(name='check real and symmetric', **p):
+                self.assertTrue(
+                    np.all(reg == reg.T)
+                )
+                self.assertTrue(
+                    np.all(long == long.T)
+                )
+                self.assertTrue(
+                    np.all(mbl == mbl.T)
+                )
             # Check elementwise equality
             with self.subTest(name='check long and regular equal', h=h, hz=0, **p):
                 self.assertTrue(
@@ -129,6 +143,12 @@ class tfim_test_case (unittest.TestCase):
                 long= module.H_dense(h=h, hz=e, **p)
                 mbl = module.H_dense(h=h*np.ones(p['L']), hz=e*np.ones(p['L']), **p)
                 with self.subTest(name='check long and regular equal', h=h, hz=e, **p):
+                    self.assertTrue(
+                        np.all(long == long.T)
+                    )
+                    self.assertTrue(
+                        np.all(mbl == mbl.T)
+                    )
                     self.assertTrue(
                         np.allclose(long, mbl)
                     )
@@ -156,10 +176,16 @@ class scars_test_case (unittest.TestCase):
     """Tests of the scars module."""
     def test_fortran_kron_consistent (self):
         """Test that"""
-        for L, O in product([3], [0, 1, np.e]):
+        for L, O in product([3, 4], [0, 1, np.e]):
             dense= scars.H_dense(L, O)
             kron = scars.H_kron(L, O)
-            with self.subTest(L=L, O=O):
+            with self.subTest(name='check Hermitian and matching', L=L, O=O):
+                self.assertTrue(
+                    np.all(dense == np.conj(dense.T))
+                )
+                self.assertTrue(
+                    np.all(kron == np.conj(kron.T))
+                )
                 self.assertTrue(
                     np.allclose(dense, kron)
                 )

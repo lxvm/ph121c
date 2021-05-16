@@ -289,7 +289,11 @@ contains
             if (v(i) /= 0) then
                 do j = 0, (L-1)
                     ! sign flips from sigma x
-                    w(i) = w(i) + v(i) * sx_1_val(hx(j))
+                    if (btest(i, j)) then
+                        w(i) = w(i) - v(i) * sx_1_val(hx(j))
+                    else
+                        w(i) = w(i) + v(i) * sx_1_val(hx(j))
+                    end if
                     ! spin flips from 1-site sigma z
                     m = ieor(i, 2 ** j)
                     w(m) = w(m) + v(i) * sz_1_val(hz(j))
