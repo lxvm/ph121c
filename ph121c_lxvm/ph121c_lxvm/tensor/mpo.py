@@ -33,7 +33,7 @@ class mpo:
     def toarray (self):
         """Turn the operator into its dense matrix representation."""
         arr = 1
-        for i, e in enumerate(self):
+        for e in self:
             if isinstance(e, np.ndarray):
                 arr = np.kron(arr, e)
             else:

@@ -78,11 +78,10 @@ What `f2py` does in the background anyway is to port the Fortran to C.
 I would recommend using the best practices, however after I got started with
 `f2py`, it was too late to go back.
 You can't exactly reuse existing Fortran code with `f2py`.
-For example, functions need to be rewritten as subroutines, where the intent
-of the arguments then gets translated into a Python function's return value.
-You also cannot use allocatable arrays, the only flexibility is if you use a
-function with a C equivalent in the array size declaration (such as pow()) but
-you may have to write your own Fortran wrapper (so pass an array size argument).
+For example, you cannot use allocatable arrays, and also using functions in 
+array size declarations is allowed only when they are understood by C (such as 
+pow()) so you may have to write your own Fortran wrapper if you prefer that
+over passing the array size as an argument.
 On the other hand, Cython requires a lot of setup and understanding
 how to interface Fortran to C and C to Python.
 
@@ -91,7 +90,8 @@ works if you have an Intel compiler.
 
 Update: I've also fixed the Fortran code so that it compiles with `gfortran`
 version 10.2 (by accident, because it happened to be installed with R).
-The Intel compiler has a number of extensions
+The Intel compiler has a number of extensions that are incompatible with other
+compilers.
 
 #### Brilliant
 
