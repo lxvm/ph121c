@@ -32,13 +32,9 @@ class mpo:
     
     def toarray (self):
         """Turn the operator into its dense matrix representation."""
+        arr = 1
         for i, e in enumerate(self):
-            if i == 0:
-                if isinstance(e, np.ndarray):
-                    arr = e.copy()
-                else:
-                    arr = np.eye(self.d)
-            elif isinstance(e, np.ndarray):
+            if isinstance(e, np.ndarray):
                 arr = np.kron(arr, e)
             else:
                 arr = np.kron(arr, np.eye(self.d))
