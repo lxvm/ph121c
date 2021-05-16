@@ -26,12 +26,16 @@ def H_sparse (L, h, bc):
     data, rows, cols = tfim_z.h_coo(N_el, L, h, bc)     
     return coo_matrix((data, (rows, cols)), shape=(2**L, 2**L)).tocsr()
 
-def H_vec (v, L, h, bc):
+def H_vec (v, L, h, bc, hz=None):
     """Compute H|v> efficiently."""
     assert bc in ['c', 'o']
     N_el = 2 ** L
-    
-    return tfim_z.h_vec(v, L, h, bc, N_el)
+    if all(isinstance(e, float) for e in [h, hz]):
+        return tfim_z.long_h_vec(v, L, h, hz, bc, N_el)
+    if all(isinstance(e, np.ndarray) for e in [h, hz]):
+        return tfim_z.mbl_h_vec(v, h, hz, bc, N_el, L)
+    else:
+        return tfim_z.h_vec(v, L, h, bc, N_el)
 
 def old_H_sparse (L, h, bc):
     """Return the Hamiltonian in sparse CSR format.
@@ -84,15 +88,15 @@ def old_H_vec (v, L, h, bc):
         w -= v * sign(bits.btest(indices, i) == bits.btest(indices, (i+1) % L))
     return w
 
-def H_oper (L, h, bc):
+def H_oper (L, h, bc, hz=None):
     """Return a Linear Operator wrapper to compute H|v>"""
     assert bc in ['c', 'o']
     def H_vec_L_h (v):
-        return H_vec(v, L, h, bc)
+        return H_vec(v, L, h, bc, hz)
 
     return LinearOperator((2**L, 2**L), matvec=H_vec_L_h)
 
-def H_dense (L, h, bc):
+def H_dense (L, h, bc, hz=None):
     """Return the dense Hamiltonian (mostly for testing)"""
     assert bc in ['c', 'o']
     H = np.zeros((2 ** L, 2 ** L))
@@ -100,6 +104,6 @@ def H_dense (L, h, bc):
     
     for i in range(2 ** L):
         v[i]    = 1
-        H[:, i] = H_vec(v, L, h, bc)
+        H[:, i] = H_vec(v, L, h, bc, hz)
         v[i]    = 0
     return H

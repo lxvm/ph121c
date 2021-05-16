@@ -1,7 +1,8 @@
-"""Test interfaces in the tfim subpackage using unittest.
+"""Test interfaces in the models subpackage using unittest.
 
 Modules and procedures tested:
-x, y: all backends in fortran
+tfim: x, y: all backends in fortran
+scars: all backends in Fortran
 """
 
 import unittest
@@ -12,11 +13,12 @@ import scipy.linalg as la
 import scipy.sparse.linalg as sla
 
 from .  import tfim_sweep
-from .. import tfim, basis
+from .. import basis
+from ..models import tfim_x, tfim_z, scars
     
             
-class x_z_test_case (unittest.TestCase):
-    """Test that all the Hamiltonians are consistent."""
+class tfim_test_case (unittest.TestCase):
+    """Test that all the TFIM Hamiltonians are consistent."""
     def setUp (self):
         self.params = dict(
             L  = np.arange(4, 11, 2),
@@ -63,14 +65,14 @@ class x_z_test_case (unittest.TestCase):
     def test_z_consistent (self):
         """Check consistency of methods in ph121c_lxvm.tfim.z."""
         self.check_sparse_dense_oper_consistent(
-            tfim.z,
+            tfim_z,
             **self.params,
         )
                 
     def test_x_consistent (self):
         """Check consistency of methods in ph121c_lxvm.tfim.x."""
         self.check_sparse_dense_oper_consistent(
-            tfim.x, 
+            tfim_x, 
             **self.params,
             **dict(sector=['+', '-', 'f']),
         )
@@ -80,10 +82,10 @@ class x_z_test_case (unittest.TestCase):
         for params in tfim_sweep(**self.params):
             with self.subTest(name='compare:z_elem==x_elem', **params):
                 # get H_x in the full basis
-                xf = tfim.x.H_dense(sector='f', **params)
+                xf = tfim_x.H_dense(sector='f', **params)
                 # direct sum of sectors to obtain H_x in full basis
-                xp = tfim.x.H_dense(sector='+', **params)
-                xm = tfim.x.H_dense(sector='-', **params)
+                xp = tfim_x.H_dense(sector='+', **params)
+                xm = tfim_x.H_dense(sector='-', **params)
                 xd = np.zeros(np.add(xp.shape, xm.shape))
                 xd[:xp.shape[0], :xp.shape[1]] = xp
                 xd[xp.shape[0]:, xp.shape[1]:] = xm
@@ -93,7 +95,7 @@ class x_z_test_case (unittest.TestCase):
                     np.allclose(xf, xd[iperm, :][:, iperm])
                 )
                 # perform change from z basis to x basis
-                zf = tfim.z.H_dense(**params)
+                zf = tfim_z.H_dense(**params)
                 hd = basis.unitary.Hadamard(params['L'])
                 self.assertTrue(
                     np.allclose(xf, hd @ zf @ hd)
@@ -103,7 +105,65 @@ class x_z_test_case (unittest.TestCase):
                 self.assertTrue(
                     np.allclose((hd @ zf @ hd)[perm, :][:, perm], xd)
                 )
+                
+    def check_long_mbp_interconsistent (self, module, **kwargs):
+        """Test the two types of longitudinal TFIMs are interconsistent"""
+        for params in tfim_sweep(**kwargs):
+            hz = params['hz']
+            h  = params['h']
+            p  = { k:v for k, v in params.items() if k not in ['h', 'hz']}
+            reg = module.H_dense(h=h, **p)
+            long= module.H_dense(h=h, hz=0.0, **p)
+            mbl = module.H_dense(h=h*np.ones(p['L']), hz=np.zeros(p['L']), **p)
+            # Check elementwise equality
+            with self.subTest(name='check long and regular equal', h=h, hz=0, **p):
+                self.assertTrue(
+                    np.allclose(reg, long)
+                )
+            with self.subTest(name='check mbl and regular equal', h=h, hz=0, **p):
+                self.assertTrue(
+                    np.allclose(reg, mbl)
+                )
+            # Check mbl and long match for hz /= 0
+            for e in hz:
+                long= module.H_dense(h=h, hz=e, **p)
+                mbl = module.H_dense(h=h*np.ones(p['L']), hz=e*np.ones(p['L']), **p)
+                with self.subTest(name='check long and regular equal', h=h, hz=e, **p):
+                    self.assertTrue(
+                        np.allclose(long, mbl)
+                    )
 
-        
+    def test_z_long_mbl_consistent (self):
+        """Test in fortran long and mbl in the z module."""
+        self.check_long_mbp_interconsistent(
+            tfim_z,
+            **self.params,
+            **dict(hz=[np.e * np.arange(3)]),
+        )
+    
+    def test_x_long_mbl_consistent (self):
+        """Test in fortran long and mbl in the x module."""
+        self.check_long_mbp_interconsistent(
+            tfim_x,
+            **self.params,
+            **dict(
+                sector=['f'],
+                hz=[np.e * np.arange(3)],
+            ),
+        )
+    
+class scars_test_case (unittest.TestCase):
+    """Tests of the scars module."""
+    def test_fortran_kron_consistent (self):
+        """Test that"""
+        for L, O in product([3], [0, 1, np.e]):
+            dense= scars.H_dense(L, O)
+            kron = scars.H_kron(L, O)
+            with self.subTest(L=L, O=O):
+                self.assertTrue(
+                    np.allclose(dense, kron)
+                )
+                
+
 if __name__ == '__main__':
     unittest.main()

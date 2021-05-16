@@ -49,7 +49,7 @@ def H_sparse (L, h, bc, sector):
     data, rows, cols = tfim_x.h_coo(N_el, L, h, bc, sector)
     return coo_matrix((data, (rows, cols)), shape=(2**N, 2**N)).tocsr()
 
-def H_vec (v, L, h, bc, sector):
+def H_vec (v, L, h, bc, sector, hz=None):
     """Compute H|v> efficiently."""
     assert bc in ['c', 'o']
     assert sector in ['+', '-', 'f']
@@ -58,7 +58,14 @@ def H_vec (v, L, h, bc, sector):
     else:
         N_el = 2 ** (L - 1)
     
-    return tfim_x.h_vec(v, L, h, bc, sector, N_el)
+    if all(isinstance(e, float) for e in [h, hz]):
+        assert (sector == 'f')
+        return tfim_x.long_h_vec(v, L, h, hz, bc, N_el)
+    elif all(isinstance(e, np.ndarray) for e in [h, hz]):
+        assert (sector == 'f') and all((e.size == L) for e in [h, hz])
+        return tfim_x.mbl_h_vec(v, h, hz, bc, N_el, L)
+    else:
+        return tfim_x.h_vec(v, L, h, bc, sector, N_el)
 
 def old_H_sparse (L, h, bc, sector):
     """Return the Hamiltonian in sparse CSR format.
@@ -117,10 +124,10 @@ def old_H_vec (v, L, h, bc, sector):
         w[m] -= v
     return w
 
-def H_oper (L, h, bc, sector):
+def H_oper (L, h, bc, sector, hz=None):
     """Return a Linear Operator wrapper to compute H|v>"""
     def H_vec_L_h (v):
-        return H_vec(v, L, h, bc, sector)
+        return H_vec(v, L, h, bc, sector, hz)
     assert bc in ['c', 'o']
     assert sector in ['+', '-', 'f']
     if sector == 'f':
@@ -130,7 +137,7 @@ def H_oper (L, h, bc, sector):
         
     return LinearOperator((2**N, 2**N), matvec=H_vec_L_h)
 
-def H_dense (L, h, bc, sector):
+def H_dense (L, h, bc, sector, hz=None):
     """Return the dense Hamiltonian (mostly for testing)"""
     assert bc in ['c', 'o']
     assert sector in ['+', '-', 'f']
@@ -143,6 +150,6 @@ def H_dense (L, h, bc, sector):
     
     for i in range(2 ** N):
         v[i]    = 1
-        H[:, i] = H_vec(v, L, h, bc, sector)
+        H[:, i] = H_vec(v, L, h, bc, sector, hz)
         v[i]    = 0
     return H

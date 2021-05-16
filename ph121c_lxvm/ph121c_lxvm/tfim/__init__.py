@@ -1,4 +1,7 @@
-"""1D Transverse-Field Ising Model (TFIM) galore.
+"""!!!! Now deprecated, but maintained for backwards compability.
+Instead use models.tfim_?
+
+1D Transverse-Field Ising Model (TFIM) galore.
 
 This package makes available functions for calculating Hamiltonians of 1D TFIMs
 of the form shown: https://en.wikipedia.org/wiki/Transverse-field_Ising_model.
@@ -35,9 +38,5 @@ implementation in Python.
 Refer to the docstrings for more details.
 """
 
-__all__ = [
-    'z',
-    'x',
-]
-
-from . import *
+from ..models import tfim_z as z
+from ..models import tfim_x as x

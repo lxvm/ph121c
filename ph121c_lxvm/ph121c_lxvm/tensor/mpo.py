@@ -29,3 +29,17 @@ class mpo:
     def __iter__ (self):
         """Iterate over the local operators in the larger operator."""
         return iter(self.oper)
+    
+    def toarray (self):
+        """Turn the operator into its dense matrix representation."""
+        for i, e in enumerate(self):
+            if i == 0:
+                if isinstance(e, np.ndarray):
+                    arr = e.copy()
+                else:
+                    arr = np.eye(self.d)
+            elif isinstance(e, np.ndarray):
+                arr = np.kron(arr, e)
+            else:
+                arr = np.kron(arr, np.eye(self.d))
+        return arr
