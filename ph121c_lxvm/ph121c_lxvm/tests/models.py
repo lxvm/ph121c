@@ -176,7 +176,7 @@ class scars_test_case (unittest.TestCase):
     """Tests of the scars module."""
     def test_fortran_kron_consistent (self):
         """Test that"""
-        for L, O in product([3, 4], [0, 1, np.e]):
+        for L, O in product([3, 4, 5, 6, 7, 8, 9, 10], [0, 1, np.e]):
             dense= scars.H_dense(L, O)
             kron = scars.H_kron(L, O)
             with self.subTest(name='check Hermitian and matching', L=L, O=O):

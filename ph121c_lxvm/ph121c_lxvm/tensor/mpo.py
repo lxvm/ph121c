@@ -8,6 +8,9 @@ class mpo:
     """A small class to build mps operators compatible with mps instances.
     
     Also does some sanity checking to make things consistent.
+    
+    This uses the convention that the operators are ordered from the fastest-
+    changing physical index, 0, to the slowest changing index, L - 1.
     """
     def __init__ (self, L, d):
         """Instantiate a mpo object acting on L qudits."""
@@ -31,11 +34,16 @@ class mpo:
         return iter(self.oper)
     
     def toarray (self):
-        """Turn the operator into its dense matrix representation."""
+        """Turn the operator into its dense matrix representation.
+        
+        This reconstructs the matrix so that the index in operator 0 is the
+        fastest-changing and that the index in operator L - 1 is slowest-changing.
+        That is, O = kron(O_{L-1}, kron( ... kron(O_1, O_0))).
+        """
         arr = 1
         for e in self:
             if isinstance(e, np.ndarray):
-                arr = np.kron(arr, e)
+                arr = np.kron(e, arr)
             else:
-                arr = np.kron(arr, np.eye(self.d))
+                arr = np.kron(np.eye(self.d), arr)
         return arr

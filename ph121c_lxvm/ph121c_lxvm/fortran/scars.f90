@@ -112,7 +112,7 @@ contains
                         cj0 = cj0 + Im
                     end if
                     ! Set value (including the transverse 1-site sigma x term)
-                    w(m) = w(m) + v(i) * ((O / 2) - cj0 * zj1 * zj2 / 4)
+                    w(m) = w(m) + v(i) * ((O / 2) - ((cj0 * zj1 * zj2) / 4))
                     
                     ! Terms of Hamming-distance 1 at position j + 1
                     m = ieor(i, 2 ** mod(j + 1, L))

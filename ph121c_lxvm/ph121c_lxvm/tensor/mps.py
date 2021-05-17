@@ -37,6 +37,10 @@ class mps:
         # desired feature: argument: order=[perm(range(L))]
         # to construct the mps from a different order of the virtual indices
         # could do this with w = schmidt.permute(v, order, L, inverse=True).T
+        ### NOTE: this would require a lot of work to support, in particular
+        ### contract_bonds would have to be aware of this order to reconstruct
+        ### the physical vector with the indicies sorted in fastest or slowest
+        ### changing order. Also, MPO's would have to support this ordering.
         assert test_valid_scheme(r, L, d)
         assert v.size == d ** L
         assert np.allclose(1, np.inner(v, v)), 'initial vector not normalized'
