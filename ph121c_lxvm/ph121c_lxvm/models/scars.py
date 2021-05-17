@@ -47,26 +47,6 @@ def H_kron (L, O):
         terms.append(mpo(L, d=2))
         terms[-1][(i + 2) % L] = sz / 4
         for a, b in product([sx, sy, sz], repeat=2):
-#             if np.all(a == sx) and np.all(b == sx):
-#                 print('sx sx sz', i)
-#             elif np.all(a == sx) and np.all(b == sy):
-#                 print('sx sy sz', i)
-#             elif np.all(a == sy) and np.all(b == sx):
-#                 print('sy sx sz', i)
-#             elif np.all(a == sy) and np.all(b == sy):
-#                 print('sy sy sz', i)
-#             elif np.all(a == sz) and np.all(b == sx):
-#                 print('sz sx sz', i)
-#             elif np.all(a == sz) and np.all(b == sy):
-#                 print('sz sy sz', i)
-#             elif np.all(a == sx) and np.all(b == sz):
-#                 print('sx sz sz', i)
-#             elif np.all(a == sy) and np.all(b == sz):
-#                 print('sy sz sz', i)
-#             elif np.all(a == sz) and np.all(b == sz):
-#                 print('sz sz sz', i)
-#             else:
-#                 print('none', a, b, i)
             # a b sz term
             terms.append(mpo(L, d=2))
             terms[-1][i] = - a / 4
