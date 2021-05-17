@@ -13,7 +13,7 @@ import numpy as np
 from . import bits, combinatorics
 
 
-def permutation (v, A, L, inverse=False):
+def permutation (A, L, inverse=False):
     """Return the permutation to use for sorting in Schmidt decomposition."""
     
     subsystem = np.sort(A)
@@ -28,7 +28,7 @@ def permutation (v, A, L, inverse=False):
 def permute (v, A, L, inverse=False):
     """Permute v by sorting sites in A to fastest-changing position."""
 
-    perm = permutation(v, A, L, inverse)
+    perm = permutation(A, L, inverse)
     indices = np.arange(v.size)
     # permute the bits of the computational basis via cycles to achieve the perm
     for cycle in combinatorics.cycles(perm):
