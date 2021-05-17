@@ -37,15 +37,14 @@ def H_kron (L, O):
     sx = np.array([[0, 1],  [1,  0]], dtype='complex')
     sy = np.array([[0,-1j], [1j, 0]], dtype='complex')
     sz = np.array([[1, 0],  [0, -1]], dtype='complex')
-    # Transverse sx
     for i in range(L):
+        # Transverse sx
         terms.append(mpo(L, d=2))
         terms[-1][i] = (O / 2) * sx
-    # 3-site befuddler
-    for i in range(L):
         # 1-local sz term
         terms.append(mpo(L, d=2))
         terms[-1][(i + 2) % L] = sz / 4
+        # 3-site befuddler
         for a, b in product([sx, sy, sz], repeat=2):
             # a b sz term
             terms.append(mpo(L, d=2))
