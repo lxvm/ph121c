@@ -30,5 +30,11 @@ setup(
                 'ph121c_lxvm/fortran/scars.f90',
             ],
         ),
+        Extension(
+            name='ph121c_lxvm_fortran_evolve',
+            sources=[
+                'ph121c_lxvm/fortran/evolve.f90',
+            ],
+        ),
     ],
 )

@@ -11,24 +11,9 @@ module types
 end module types
 
 
-module constants
-
-    use types
-    
-    implicit none
-    
-    private
-    public &
-        Im
-    
-    complex(dp), parameter :: Im = (0, 1)
-    
-end module constants
-
 module scars
     ! A spin 1/2 Hamiltonian that is a toy model of Rydberg atoms in z basis
     use types
-    use constants
     
     implicit none
     
@@ -68,8 +53,8 @@ contains
         ! Note: N = 2 ** L
         integer,    intent (in   ) :: L, N
         real(dp),   intent (in   ) :: O
-        real(dp),intent (in   ) :: v(0:(N - 1))
-        real(dp),intent (  out) :: w(0:(N - 1))
+        real(dp),   intent (in   ) :: v(0:(N - 1))
+        real(dp),   intent (  out) :: w(0:(N - 1))
         integer i, j, m
         w = 0
         
@@ -84,7 +69,6 @@ contains
                     w(m) = w(m) + v(i) * (O / 2)
                     ! Terms of Hamming distance 2 at positions j, j + 1
                     m = ieor(m, 2 ** mod(j + 1, L))
-                    ! Set value
                     w(m) = w(m) + v(i) * (-0.25) &
                         ! sx sx sz + sy sy sz terms (1 - 1 = 0)
                         * (2 * poppar(iand(i, (2 ** j) + (2 ** mod(j + 1, L))))) &
