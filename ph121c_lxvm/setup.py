@@ -35,6 +35,12 @@ setup(
             sources=[
                 'ph121c_lxvm/fortran/evolve.f90',
             ],
+            extra_f90_compile_args=[
+                '-fopenmp',
+            ],
+            libraries=[
+                'gomp',
+            ],
         ),
     ],
 )
