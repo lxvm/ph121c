@@ -46,15 +46,13 @@ contains
         complex(dp),intent (inout) :: Cevecs(0:(Nelm - 1), 0:(Nelm - 1))
         real(dp),   intent (  out) :: values(Nstp)
         complex(dp) partial, tmp
-        real(dp) full
         integer i, n, x
         ! k is the site we want to calculate the operator at
         x = 2 ** k
         
-        !$omp parallel private(partial, tmp) shared(full)
+        !$omp parallel private(partial, tmp)
         do n = 1, Nstp
             partial = 0
-            full = 0
             !$omp do
             do i = 0, ((2 ** L) - 1)
                 if (which == 'x') then
@@ -74,10 +72,9 @@ contains
                 end if
             end do
             !$omp end do
-            !$omp critical
-            full = full + real(partial)
-            !$omp end critical
-            values(n) = full
+            !$omp atomic
+            values(n) = values(n) + real(partial)
+            !$omp end atomic
             ! update for next time step
             if (n < Nstp) then
                 !$omp do
