@@ -38,7 +38,7 @@ def save (path, data, metadata, archive):
             dset = obj.create_dataset(path, data=data)
             for key, value in metadata.items():
                 dset.attrs[key] = value
-        except TypeError:
+        except (TypeError, ValueError):
             grp = obj.create_group(path)
             for key, value in metadata.items():
                 grp.attrs[key] = value
