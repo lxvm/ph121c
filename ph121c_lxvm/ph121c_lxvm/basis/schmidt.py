@@ -25,10 +25,11 @@ def permutation (A, L, inverse=False):
         perm = np.argsort(perm)
     return perm
     
-def permute (v, A, L, inverse=False):
+def permute (v, A, L, inverse=False, perm=None):
     """Permute v by sorting sites in A to fastest-changing position."""
 
-    perm = permutation(A, L, inverse)
+    if not isinstance(perm, np.ndarray):
+        perm = permutation(A, L, inverse)
     indices = np.arange(v.size)
     # permute the bits of the computational basis via cycles to achieve the perm
     for cycle in combinatorics.cycles(perm):
