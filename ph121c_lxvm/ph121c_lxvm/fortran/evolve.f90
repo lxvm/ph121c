@@ -23,135 +23,68 @@ module evolve
     
     private
     public &
+        set_threads, &
         get_threads, &
-        time_ev, &
-        do_time_evx, &
-        do_time_evy, &
-        do_time_evz
+        Pauli_ev
         
 contains
 
-    function get_threads() result(nt)
-        integer :: nt
-        nt = 0
+    subroutine set_threads (n)
+        integer, intent (in) :: n
+        call omp_set_num_threads(n)
+    end subroutine set_threads
+    
+    integer function get_threads ()
         !$omp parallel
-        nt = omp_get_num_threads()
+        get_threads = omp_get_num_threads()
         !$omp end parallel
     end function get_threads
-    
-    subroutine time_ev (L, k, Nelm, Nstp, which, Cevecs, Tevals, values)
-        ! Cevecs should have an eigenvector in each row, scaled by the coef
-        ! Tevals should be equal to exp(-i * evals * dt) for time stepping
+
+    subroutine Pauli_ev (L, k, Nelm, Nstp, which, Cevecs, Tevals, values)
+        ! do the time evolution for Pauli x
         character,  intent (in   ) :: which
         integer,    intent (in   ) :: L, k, Nelm, Nstp
         complex(dp),intent (in   ) :: Tevals(0:(Nelm - 1))
         complex(dp),intent (inout) :: Cevecs(0:(Nelm - 1), 0:(Nelm - 1))
         real(dp),   intent (  out) :: values(Nstp)
-        operator: select case (which)
-            case ('x')
-                call do_time_evx(L, k, Nelm, Nstp, Cevecs, Tevals, values)
-            case ('y')
-                call do_time_evy(L, k, Nelm, Nstp, Cevecs, Tevals, values)
-            case ('z')
-                call do_time_evz(L, k, Nelm, Nstp, Cevecs, Tevals, values)
-            case default
-                stop 'operator not supported: only Pauli x, y, z'
-        end select operator
-    end subroutine time_ev
-    
-    subroutine do_time_evx (L, k, Nelm, Nstp, Cevecs, Tevals, values)
-        ! do the time evolution for Pauli z
-        integer,    intent (in   ) :: L, k, Nelm, Nstp
-        complex(dp),intent (in   ) :: Tevals(0:(Nelm - 1))
-        complex(dp),intent (inout) :: Cevecs(0:(Nelm - 1), 0:(Nelm - 1))
-        real(dp),   intent (  out) :: values(Nstp)
         complex(dp) partial, lookup(0:(Nelm - 1))
         integer i, n, x
         ! k is the site at which we want to calculate the operator
         x = 2 ** k
-        !$omp parallel private(partial)
         do n = 1, Nstp
-            ! partial sum computed on each thread
-            partial = 0
-            ! Marginalize out the energy basis, leaving the physical index
-            lookup = sum(Cevecs, dim=1)
-            !$omp do
+            !$omp parallel do private (i)
             do i = 0, ((2 ** L) - 1)
-                ! Find the contribution to the sum
-                partial = partial + lookup(i) * conjg(lookup(ieor(i, x)))
-                ! Meanwhile, update time step for next loop
+                lookup(i) = sum(Cevecs(:, i))
                 Cevecs(:, i) = Cevecs(:, i) * Tevals
             end do
-            !$omp end do
-            !$omp atomic
-            values(n) = values(n) + real(partial)
-            !$omp end atomic
-        end do
-        !$omp end parallel
-    end subroutine do_time_evx
-    
-    subroutine do_time_evy (L, k, Nelm, Nstp, Cevecs, Tevals, values)
-        ! do the time evolution for Pauli y
-        integer,    intent (in   ) :: L, k, Nelm, Nstp
-        complex(dp),intent (in   ) :: Tevals(0:(Nelm - 1))
-        complex(dp),intent (inout) :: Cevecs(0:(Nelm - 1), 0:(Nelm - 1))
-        real(dp),   intent (  out) :: values(Nstp)
-        complex(dp) partial, lookup(0:(Nelm - 1))
-        integer i, n, x
-        ! k is the site at which we want to calculate the operator
-        x = 2 ** k
-        !$omp parallel private(partial)
-        do n = 1, Nstp
-            ! partial sum computed on each thread
+            !$omp end parallel do
             partial = 0
-            ! Marginalize out the energy basis, leaving the physical index
-            lookup = sum(Cevecs, dim=1)
-            !$omp do
-            do i = 0, ((2 ** L) - 1)
-                ! Find the contribution to the sum
-                partial = partial + lookup(i) * conjg(lookup(ieor(i, x))) &
-                    * (0, -1.0) * (1 - 2 * poppar(iand(i, x)) - 1)
-                ! Meanwhile, update time step for next loop
-                Cevecs(:, i) = Cevecs(:, i) * Tevals
-            end do
-            !$omp end do
-            !$omp atomic
-            values(n) = values(n) + real(partial)
-            !$omp end atomic
+            operator: select case (which)
+                case ('x')
+                    !$omp parallel do private (i) reduction (+:partial)
+                    do i = 0, ((2 ** L) - 1)
+                        partial = partial + lookup(i) * conjg(lookup(ieor(i, x)))
+                    end do
+                    !$omp end parallel do
+                case ('y')
+                    !$omp parallel do private (i) reduction (+:partial)
+                    do i = 0, ((2 ** L) - 1)
+                        partial = partial + lookup(i) * conjg(lookup(ieor(i, x))) &
+                            * (0, -1.0) * (1 - 2 * poppar(iand(i, x)) - 1)
+                    end do
+                    !$omp end parallel do
+                case ('z')
+                    !$omp parallel do private (i) reduction (+:partial)
+                    do i = 0, ((2 ** L) - 1)
+                        partial = partial + lookup(i) * conjg(lookup(i)) &
+                            * (1 - 2 * poppar(iand(i, x)))
+                    end do
+                    !$omp end parallel do
+                case default
+                    stop 'chosen operator not implemented'
+            end select operator
+            values(n) = real(partial)
         end do
-        !$omp end parallel
-    end subroutine do_time_evy
-    
-    subroutine do_time_evz (L, k, Nelm, Nstp, Cevecs, Tevals, values)
-        ! do the time evolution for Pauli z
-        integer,    intent (in   ) :: L, k, Nelm, Nstp
-        complex(dp),intent (in   ) :: Tevals(0:(Nelm - 1))
-        complex(dp),intent (inout) :: Cevecs(0:(Nelm - 1), 0:(Nelm - 1))
-        real(dp),   intent (  out) :: values(Nstp)
-        complex(dp) partial, lookup(0:(Nelm - 1))
-        integer i, n, x
-        ! k is the site at which we want to calculate the operator
-        x = 2 ** k
-        !$omp parallel private(partial)
-        do n = 1, Nstp
-            ! partial sum computed on each thread
-            partial = 0
-            ! Marginalize out the energy basis, leaving the physical index
-            lookup = sum(Cevecs, dim=1)
-            !$omp do
-            do i = 0, ((2 ** L) - 1)
-                ! Find the contribution to the sum
-                partial = partial + lookup(i) * conjg(lookup(i)) &
-                    * (1 - 2 * poppar(iand(i, x)))
-                ! Meanwhile, update time step for next loop
-                Cevecs(:, i) = Cevecs(:, i) * Tevals
-            end do
-            !$omp end do
-            !$omp atomic
-            values(n) = values(n) + real(partial)
-            !$omp end atomic
-        end do
-        !$omp end parallel
-    end subroutine do_time_evz
-    
+    end subroutine Pauli_ev
+
 end module evolve
