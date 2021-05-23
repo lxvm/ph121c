@@ -1,6 +1,8 @@
 # Ph 121c
 
-## Python environment
+## Python 
+
+### Environment
 
 Since I am using the Intel distribution for Python, you can take the following 
 steps to (hopefully) reproduce my environment exactly:
@@ -23,34 +25,83 @@ I believe that Intel Python is also available in the `intel` channel on `conda`.
 Note this is specific to my Python code and if I use Fortran anywhere then
 a Fortran compiler is necessary, and I am using those provided by Intel.
 
-You could also probably get this to work without Intel Python, as the only
-consequence is that it probably won't be as fast.
+**You could also probably get this to work without Intel Python.**
 My code probably will only depend on numpy, scipy, matplotlib, pandas, pillow,
 and hdf5, and so you could just install my package into a virtual
 environment with those and install any additional packages that are needed.
 Since I am using `conda` only for Intel Python, you would probably be better
 off by installing this into a Python `venv` which is less complicated.
 
-## Python package
+### Package
 
 I made a package to collect my Python code for this project.
 If you would like to test the code, you might want to use this package with an 
 editable installation.
 
-### Testing
+#### Testing
 
-There are tests, such as the module `ph121c_lxvm.tests.tfim` that can be
+There are tests, such as the module `ph121c_lxvm.tests.models` that can be
 run at the command line via commands such as 
 ```
-> python -m ph121c_lxvm.tests.tfim
-> python -m unittest ph121c_lxvm.tests.tfim.test_hashable_naming
+> python -m ph121c_lxvm.tests.models
+> python -m unittest ph121c_lxvm.tests.models.tfim_test_case
 ```
 
-### Package status
+#### Status
 - Needs argument specifications in all docstrings
-- Most of the tfim tasks have an associated test -- keep it up!
+- Most of the models and tensor tasks have an associated test -- keep it up!
 
-### Fortran integration
+## Fortran 
+
+### Learning
+
+Don't be afraid to learn Fortran!
+But also don't expect to use Fortran for anything: It's strengths currently lie
+in rapid and parallel numerics (aka FORmula TRANslation), though there is a
+growing standard library for other tasks (however, incomparable to Python).
+
+As a language, it is statically and strongly typed, meaning that there are fewer
+gotcha's because every data type needs a type declaration, and every procedure
+needs an interface: these traits make Fortran code verbose, but readable.
+To learn some Fortran from a book, take a look at a free section of an ebook
+[here](https://www.manning.com/books/exploring-modern-fortran-basics).
+
+#### Community
+
+These are the places one can get started with Fortran:
+- [_The_ community hub for Fortran](https://fortran-lang.org/)
+- [Fortran programming practices](https://www.fortran90.org/)
+- [Fortran Wiki](http://fortranwiki.org/fortran/show/Fortran+Wiki)
+
+Look out for these people/blogs/projects in the Fortran community:
+- [Dr. Fortran](https://stevelionel.com/drfortran/)
+- [Ondřej Čertík](https://ondrejcertik.com/blog/)
+- [Milan Curcic](https://milancurcic.com/)
+- [Fortran book blog](https://medium.com/modern-fortran)
+- [Fortran projects](https://github.com/rabbiabram/awesome-fortran),
+notably missing [ARPACK](https://www.caam.rice.edu/software/ARPACK/),
+and probably [HDF5](https://www.hdfgroup.org/solutions/hdf5)
+- [Fortran proposals](https://github.com/j3-fortran/fortran_proposals)
+
+#### The present is in the the near future (for Fortran)
+
+[LFortran](https://lfortran.org/) is an under-development Fortran compiler
+designed to be compiled just-in-time with LLVM technology.
+This makes it availabe for interactive use: LFortran has a Jupyter kernel!
+It's not good enough because it doesn't have enough intrinsics to be useful,
+but it is cool and I think should be mentioned because it might make learning
+Fortran more fun (at the risk of not being complete).
+
+[`fpm`](https://github.com/fortran-lang/fpm) is a Fortran package manager that
+aims to make using and building Fortran code similar to Rust's `cargo` -- an
+experience much closer to Python's `pip` than the age-old process of building
+libraries using `make` via directly linking libraries and such.
+
+[`stdlib`](https://github.com/fortran-lang/stdlib), a growing standard library
+for Fortran aimed at providing basic utilities not implement intrinsically by
+Fortran compilers (i.e. not accepted by the Fortran Standards Committee).
+
+### Integration with Python
 
 The module `numpy.f2py` allows for integration of Fortran code into Python.
 This can be very beneficial, especially for very loopy tasks that are purely
@@ -74,9 +125,9 @@ works.
 
 The recommended way to interface Fortran and Python is actually via Cython.
 What `f2py` does in the background anyway is to port the Fortran to C.
-[Best practices reference](https://www.fortran90.org/src/best-practices.html#interfacing-with-python).
-I would recommend using the best practices, however after I got started with
-`f2py`, it was too late to go back.
+I would recommend using these [best practices
+](https://www.fortran90.org/src/best-practices.html#interfacing-with-python),
+however after I got started with `f2py`, it was too late to go back.
 You can't exactly reuse existing Fortran code with `f2py`.
 For example, you cannot use allocatable arrays, and also using functions in 
 array size declarations is allowed only when they are understood by C (such as 
@@ -93,16 +144,7 @@ version 10.2 (by accident, because it happened to be installed with R).
 The Intel compiler has a number of extensions that are incompatible with other
 compilers.
 
-#### Brilliant
-
-[LFortran](https://lfortran.org/) is an under-development Fortran kernel for
-Jupyter.
-It's not good enough because it doesn't have enough intrinsics to be useful,
-but it is cool and I think should be mentioned because it might make learning
-Fortran more fun (at the risk of not being complete).
-[Another kernel](https://github.com/ZedThree/jupyter-fortran-kernel).
-
-### Misc
+## Misc
 
 Note: I tried to setup this package using `pyscaffold`, which seems pretty 
 useful, but I ran into an error with `setuptools_scm` not liking where my
