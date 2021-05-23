@@ -98,6 +98,7 @@ Look out for these people/blogs/projects in the Fortran community:
 notably missing [ARPACK](https://www.caam.rice.edu/software/ARPACK/),
 and probably [HDF5](https://www.hdfgroup.org/solutions/hdf5)
 - [Fortran proposals](https://github.com/j3-fortran/fortran_proposals)
+- [F/OSS](https://github.com/Fortran-FOSS-Programmers)
 
 #### The present is in the the near future (for Fortran)
 
