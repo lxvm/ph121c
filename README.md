@@ -65,8 +65,24 @@ gotcha's because every data type needs a type declaration, and every procedure
 needs an interface: these traits make Fortran code verbose, but readable.
 To learn some Fortran from a book, take a look at a free section of an ebook
 [here](https://www.manning.com/books/exploring-modern-fortran-basics).
+For historical reasons, you may also be interested in perusing the 1956 manual
+[here](http://bitsavers.informatik.uni-stuttgart.de/pdf/ibm/704/704_FortranProgRefMan_Oct56.pdf).
 
 #### Community
+
+Disclaimer: The Fortran community dates to 1954 and continues to represent the
+demographics of the scientific computing community. These demographics are
+disappointing with respect to gender equity and racial diversity, and currently,
+there appear to be no efforts on behalf of the Fortran community to do outreach
+in these areas. You might compare this to actions and statements from the
+[Julia](https://julialang.org/diversity/) and
+[NumFOCUS](https://numfocus.org/programs/diversity-inclusion) communities.
+I wonder with whom I should invest my time and these issues matter to me, so I
+want to bring attention to this for anyone else who is thinking about it too.
+That being said, the Fortran community is small, and all contributors are
+welcome according to the Fortran language webpage. This old language has been
+seeing a bit of revival since 2020, and new work by the community promises many
+good things.
 
 These are the places one can get started with Fortran:
 - [_The_ community hub for Fortran](https://fortran-lang.org/)
