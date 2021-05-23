@@ -1,4 +1,4 @@
-# Transverse-Field Ising Model
+# Assignment 1: Transverse-Field Ising Model
 
 ``You can only be certain of the Heisenbug Uncertainty Principle''
 
