@@ -27,7 +27,7 @@ a Fortran compiler is necessary, and I am using those provided by Intel.
 
 **You could also probably get this to work without Intel Python.**
 My code probably will only depend on numpy, scipy, matplotlib, pandas, pillow,
-and hdf5, and so you could just install my package into a virtual
+and h5py, and so you could just install my package into a virtual
 environment with those and install any additional packages that are needed.
 Since I am using `conda` only for Intel Python, you would probably be better
 off by installing this into a Python `venv` which is less complicated.
