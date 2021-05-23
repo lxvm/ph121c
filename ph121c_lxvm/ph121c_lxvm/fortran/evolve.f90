@@ -1,10 +1,13 @@
 module types
     ! https://stackoverflow.com/questions/12523524/f2py-specifying-real-precision-in-fortran-when-interfacing-with-python
+    ! preferably
+    !use iso_fortran_env, only: dp=>real64
+    ! or
+    !use, intrinsic :: iso_fortran_env, only: dp=>real64
     implicit none
     
     private
-    public &
-        dp
+    public dp
     
     integer, parameter :: dp=kind(0.d0)
     
@@ -14,6 +17,7 @@ end module types
 module evolve
     ! Time-evolve expectation values of operators sx, sy, and sz
     use types
+    !use iso_fortran_env, only: dp=>real64
     use omp_lib
     ! learning openmp from:
     ! https://curc.readthedocs.io/en/latest/programming/OpenMP-Fortran.html
@@ -52,12 +56,20 @@ contains
         ! k is the site at which we want to calculate the operator
         x = 2 ** k
         do n = 1, Nstp
-            !$omp parallel do private (i)
-            do i = 0, ((2 ** L) - 1)
-                lookup(i) = sum(Cevecs(:, i))
-                Cevecs(:, i) = Cevecs(:, i) * Tevals
-            end do
-            !$omp end parallel do
+            if (n == Nstp) then
+                !$omp parallel do private (i)
+                do i = 0, ((2 ** L) - 1)
+                    lookup(i) = sum(Cevecs(:, i))
+                end do
+                !$omp end parallel do
+            else
+                !$omp parallel do private (i)
+                do i = 0, ((2 ** L) - 1)
+                    lookup(i) = sum(Cevecs(:, i))
+                    Cevecs(:, i) = Cevecs(:, i) * Tevals
+                end do
+                !$omp end parallel do
+            end if
             partial = 0
             operator: select case (which)
                 case ('x')

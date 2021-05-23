@@ -49,7 +49,7 @@ class mps:
         self.L = L
         self.r = r
         self.dim = lambda i: dim_mps(i, self.L, self.d)
-        if not A:
+        if not isinstance(A, np.ndarray):
             self.A = np.empty(L, dtype='object')
             w = self.v[:, None].T
             # Create the mps representation
@@ -137,13 +137,16 @@ class mps:
         
         for i in range(self.L - 1):
             # collapse the physical index
-            val = np.conj(np.transpose(B.A[i])) @ val
+            val = B.A[i].conj().T @ val
             # collapse the A_i index
             val = np.kron(np.eye(self.d), val) @ self.A[i + 1]
-        val = np.conj(np.transpose(B.A[self.L - 1])) @ val
-        assert val.size == 1
-        return val[0, 0]
-        
+        val = B.A[self.L - 1].conj().T @ val
+        if isinstance(val, np.ndarray):
+            assert val.size == 1
+            return val[0, 0]
+        elif isinstance(val, (float, complex)):
+            return val
+
     def mel (self, O, B):
         """Calculate the matrix element <b|O|a>."""
         return self.oper(O).inner(B)

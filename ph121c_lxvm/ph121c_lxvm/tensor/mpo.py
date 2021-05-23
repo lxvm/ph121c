@@ -26,8 +26,13 @@ class mpo:
     
     def __setitem__ (self, i, oper):
         """Set the operator at the ith site."""
-        assert oper.shape == (self.d, self.d)
-        self.oper[i] = oper
+        assert isinstance(i, (int, list, np.ndarray))
+        if isinstance(i, int):
+            assert oper.shape == (self.d, self.d)
+            self.oper[i] = oper
+        else:
+            assert , 'Require contiguity of indices'
+            assert oper.shape == tuple( self.d ** len(i) for _ in range(2) )
 
     def __iter__ (self):
         """Iterate over the local operators in the larger operator."""
