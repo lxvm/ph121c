@@ -31,8 +31,10 @@ class mpo:
             assert oper.shape == (self.d, self.d)
             self.oper[i] = oper
         else:
-            assert , 'Require contiguity of indices'
-            assert oper.shape == tuple( self.d ** len(i) for _ in range(2) )
+            pass
+            # TODO: Implement multi-site MPOs
+#             assert , 'Require contiguity of indices'
+#             assert oper.shape == tuple( self.d ** len(i) for _ in range(2) )
 
     def __iter__ (self):
         """Iterate over the local operators in the larger operator."""
