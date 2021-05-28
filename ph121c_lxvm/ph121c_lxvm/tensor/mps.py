@@ -17,16 +17,24 @@ from copy import deepcopy
 from itertools import product
 
 import numpy as np
-import scipy.sparse.linalg as sla
 
-from .utils import *
-from .mpo import *
+from .utils   import *
+from .indices import *
+from .site    import *
+from .train   import *
 
 
-class mps:
+class mps (train):
     """Class for representing and operating on MPS wavefunctions."""
-    def __init__ (self, v, r, L, d, A=None):
-        """Create an MPS representation of vector with compression scheme.
+    def __init__ (self, L, d, center=None, Nsites=0, data=None, **kwargs):
+        """Instantiate an mps object for a qudit chain of length L."""
+        self.d = d
+        self.L = L
+        self.center = center
+        super().__init__(Nsites, data)
+        
+    def from_vec (self, v, r, center=-1):
+        """Create Left-canonical MPS representation of vector with compression.
         
         v needs to be an ndarray of shape (d ** L, ) whose entries are already
         sorted in the computational basis in the order (0, ..., 0), (0, ..., 1)
@@ -34,42 +42,100 @@ class mps:
         r needs to be an integer function whose minimum is 1 and whose maximum
         on the for inputs of 1 to L is the same as tensor.dim_mps.
         """
-        # desired feature: argument: order=[perm(range(L))]
-        # to construct the mps from a different order of the virtual indices
-        # could do this with w = schmidt.permute(v, order, L, inverse=True).T
-        ### NOTE: this would require a lot of work to support, in particular
-        ### contract_bonds would have to be aware of this order to reconstruct
-        ### the physical vector with the indicies sorted in fastest or slowest
-        ### changing order. Also, MPO's would have to support this ordering.
-        assert test_valid_scheme(r, L, d)
-        assert v.size == d ** L
+        assert test_valid_scheme(r, self.L, self.d)
+        assert v.size == self.d ** self.L
         assert np.allclose(1, np.inner(v, v)), 'initial vector not normalized'
-        self.v = v
-        self.d = d
-        self.L = L
-        self.r = r
-        self.dim = lambda i: dim_mps(i, self.L, self.d)
-        if not isinstance(A, np.ndarray):
-            self.A = np.empty(L, dtype='object')
-            w = self.v[:, None].T
-            # Create the mps representation
-            for i in range(L):
-                # shift columns to rows, keeping the physical index the outer index
-                w    = w.reshape(w.shape[0] * self.d, w.shape[1] // d, order='F')
-                a,s,w= np.linalg.svd(w, full_matrices=False)
-                # truncate results
-                self.A[i] = a[:, :r(i+1)]
-                w    = s[:self.r(i + 1), None] * w[:self.r(i + 1), :]
-        else:
-            self.A = A
-            
-    def contract_bonds (self):
-        """Contract the bond indices and return the approximate physical vector."""
-        v = np.zeros(self.d ** self.L)
+        # Create the initial wavefunction
+        super().__init__(1)
+        self.data[0] = site(
+            mat=v[:, None].T,
+            ind=multi_index((multi_index(), multi_index(
+                [ quanta(range(self.d), i) for i in range(self.L, 0, -1) ]
+            )))
+        )
+        self.center = center
+#         # Create the left-canonical mps representation
+#         for i in range(self.L):
+#             self.split_site(self.data[i])
+#             # shift columns to rows, keeping the physical index the outer index
+#             w = w.reshape(w.shape[0] * self.d, w.shape[1] // self.d, order='F')
+#             a, s, w = np.linalg.svd(w, full_matrices=False)
+#             # truncate results
+#             self.A[i] = a[:, :r(i+1)]
+#             w = s[:self.r(i + 1), None] * w[:self.r(i + 1), :]
+    
+    def from_tensor (self, A, center):
+        """Create a mps from a tensor."""
+        pass
+    
+    def canonize (self, center):
+        """Send an MPS into canonical form with orthogonality center j **IN PLACE**.
+
+        center=0 is right-canonical, and center=-1 is left-canonical.
+        """
+        # sweep left to right, left-canonical
+        for i in range(len(self.A[:center])):
+            # contract virtual index: (qa, b), (rb, c) -> (rqa, c)
+            tmp = np.kron(np.eye(self.d), self.A[i]) @ self.A[i+1]
+            # separate physical indices by row, column: (rqa, c) -> (qa, rc)
+            tmp = tmp.reshape(
+                (tmp.shape[0]//self.d, self.d*tmp.shape[1]), order='F'
+            )[:, exchange(self.d, tmp.shape[1])]
+            # insert bond: (qa, rc) -> (qa, b), (b, rc)
+            u, s, vh = np.linalg.svd(tmp, full_matrices=False)
+            # left-canonical: place Schmidt values to the right
+            self.A[i] = u
+            # restore column physical index to row: (b, rc) -> (rb, c) TODO!!!
+            self.A[i+1] = (s[:, None] * vh).reshape(
+                (vh.shape[0]*self.d, vh.shape[1]//self.d),
+            )[exchange(vh.shape[0], self.d), :]
+        # sweep right to left, right canonical
+        for i in range(len(self.A[center:-1])):
+            # contract virtual index: (qa, b), (rb, c) -> (rqa, c)
+            tmp = np.kron(np.eye(self.d), self.A[i]) @ self.A[i+1]
+            # separate physical indices by row, column: (rqa, c) -> (qa, rc)
+            tmp = tmp.reshape(
+                (tmp.shape[0]//self.d, self.d*tmp.shape[1]), order='F'
+            )[:, exchange(self.d, tmp.shape[1])]
+            # insert bond: (qa, rc) -> (qa, b), (b, rc)
+            u, s, vh = np.linalg.svd(tmp, full_matrices=False)
+            # right-canonical: place Schmidt values to the left
+            self.A[i] = u * s
+            # restore column physical index to row: (b, rc) -> (rb, c) TODO!!!
+            self.A[i+1] = vh.reshape(
+                (vh.shape[0]*self.d, vh.shape[1]//self.d)
+            )[exchange(vh.shape[0], self.d), :]
+        self.center = center
         
-        for i, index in enumerate(product(np.arange(self.d), repeat=self.L)):
-            v[i] = self.get_component(np.array(index)[::-1])
-        return v
+    def contract_bonds (self, bonds=None):
+        """Contract the given bond indices and return vector/mps."""
+        if isinstance(bonds, type(None)):
+            # Contract all bonds and return physical vector
+            v = np.zeros(self.d ** self.L)
+            for i, index in enumerate(product(np.arange(self.d), repeat=self.L)):
+                v[i] = self.get_component(np.array(index)[::-1])
+            return v
+        else:
+            # let a, b, c be bond indices and q, r be physical indices
+            # Contract specified bonds:(qa, b), (rb, c) -> (rqa, c)
+            tmp = np.kron(np.eye(d), mps_in[i]) @ mps_in[i+1]
+            # regroup physical indices by row/column: (rqa,c) -> (qa, rc)
+            tmp = tmp.reshape(
+                (tmp.shape[0]//d, d*tmp.shape[1]), order='F'
+            )[:, exchange(d, tmp.shape[1])]
+            
+        
+    def trim_rank (self, r):
+        """Trim the rank of the MPS **IN PLACE**."""
+        assert test_valid_scheme(r, self.L, self.d)
+        for i in range(self.L):
+            self.A[i] = self.A[i].reshape(
+                self.r(i), self.d * self.r(i + 1), order='F'
+            )[:r(i), :].reshape(
+                self.d * min(self.r(i), r(i)), self.r(i + 1), order='F'
+            )[:, :r(i + 1)]
+        self.r_prev = self.r
+        self.r = lambda i: min(self.r_prev(i), r(i))
         
     def lower_rank (self, r):
         """Lower the rank of the MPS **IN PLACE**"""
@@ -104,29 +170,6 @@ class mps:
     def shapes (self):
         """Return a list of the shapes of the mps representations."""
         return [ e.shape for e in self.A ]
-    
-    def oper (self, local_oper):
-        """Apply an operator to any physical indices and return a new mps object.
-        
-        The way to create an operator is to instantiate one with
-        np.empty(L, dtype='object')
-        and then to populate each index with a d x d matrix.
-        Unset values remain None and are equivalent to the identity operator.
-        """
-        if isinstance(local_oper, mpo):
-            assert self.L == local_oper.L
-            assert self.d == local_oper.d
-        elif isinstance(local_oper, np.ndarray):
-            assert local_oper.dtype == 'O'
-            assert local_oper.size == self.A.size
-        else:
-            raise UserWarning('matrix product operator is of unsupported type')
-        B = deepcopy(self)
-        
-        for i, oper in enumerate(local_oper):
-            if np.any(oper) and isinstance(oper, np.ndarray):
-                B.A[i] = np.kron(oper, np.eye(self.r(i))) @ self.A[i]
-        return B
             
     def inner (self, B):
         """Take the inner product with another mps wavefunction."""
@@ -149,8 +192,8 @@ class mps:
 
     def mel (self, O, B):
         """Calculate the matrix element <b|O|a>."""
-        return self.oper(O).inner(B)
-        
-    def expval (self, O):
-        """Calculate the expectation value <a|O|a>."""
-        return self.mel(O, self)
+        return O.oper(self).inner(B)
+    
+    def copy (self):
+        """Return a deep copy of self."""
+        return deepcopy(self)

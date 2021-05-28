@@ -104,7 +104,7 @@ and probably [HDF5](https://www.hdfgroup.org/solutions/hdf5)
 
 [LFortran](https://lfortran.org/) is an under-development Fortran compiler
 designed to be compiled just-in-time with LLVM technology.
-This makes it availabe for interactive use: LFortran has a Jupyter kernel!
+This makes it available for interactive use: LFortran has a Jupyter kernel!
 It's not good enough because it doesn't have enough intrinsics to be useful,
 but it is cool and I think should be mentioned because it might make learning
 Fortran more fun (at the risk of not being complete).

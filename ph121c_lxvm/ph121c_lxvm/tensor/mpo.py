@@ -3,9 +3,12 @@
 
 import numpy as np
 
+from .train import train
+from .mps import mps
 
-class mpo:
-    """A small class to build mps operators compatible with mps instances.
+
+class mpo (train):
+    """A class to build mps operators compatible with mps instances.
     
     Also does some sanity checking to make things consistent.
     
@@ -18,29 +21,28 @@ class mpo:
         assert (0 < L) and (0 < d)
         self.L = L
         self.d = d
-        self.oper = np.empty(self.L, dtype='object')
+        self.oper = []
+        self.info = []
     
-    def __getitem__ (self, i):
-        """Retrieve the operator at the ith site."""
-        return self.oper[i]
+    def vacant (self, rng):
+        """Check that requested sites are available to fill."""
+        return NotImplemented
     
-    def __setitem__ (self, i, oper):
-        """Set the operator at the ith site."""
-        assert isinstance(i, (int, list, np.ndarray))
-        if isinstance(i, int):
-            assert oper.shape == (self.d, self.d)
-            self.oper[i] = oper
-        else:
-            pass
-            # TODO: Implement multi-site MPOs
-#             assert , 'Require contiguity of indices'
-#             assert oper.shape == tuple( self.d ** len(i) for _ in range(2) )
-
-    def __iter__ (self):
-        """Iterate over the local operators in the larger operator."""
-        return iter(self.oper)
+    def set_local_oper (self, oper, left_site, separate=False):
+        """Add a k-local operator at a site in the operator.
+        
+        Optionally, if k>1, the operator can be 
+        """
+        assert all(e % d == 0 for e in oper.shape)
+        assert oper.shape[0] == oper.shape[1]
+        assert vacant(range(left_site, left_site + get_phys_dim(oper.shape[0], self.d)))
+        pass
     
-    def toarray (self):
+    def from_arr (self):
+        """."""
+        pass
+    
+    def to_arr (self):
         """Turn the operator into its dense matrix representation.
         
         This reconstructs the matrix so that the index in operator 0 is the
@@ -54,3 +56,24 @@ class mpo:
             else:
                 arr = np.kron(np.eye(self.d), arr)
         return arr
+
+    def oper (self, mps_in):
+        """Apply operator to a tensor.mps instance **IN PLACE**."""
+        assert isinstance(mps_in, mps)
+        assert self.L == mps_in.L
+        assert self.d == mps_in.d
+        
+        pass
+
+    def combine (self, oper):
+        """Combine two compatible mpo's into one operator."""
+        assert isinstance(oper, mpo)
+        pass
+    
+    def mel (self, mps_a, mps_b):
+        """Calculate the matrix element <b|O|a> of this operator."""
+        return self.oper(mps_a).inner(mps_b)
+    
+    def expval (self, mps_in):
+        """Calculate the expectation value <a|O|a> of an operator."""
+        return self.mel(mps_in, mps_in)
