@@ -1,8 +1,8 @@
 """Implement elementary tensor network construction and operations.
 
 Currently performs matrix product state (MPS) representations and operations.
-A good overview of the topic is available here:
-https://tensornetwork.org/mps/
+A good overview of the topic is here: https://tensornetwork.org/mps/
+A review paper on the topic is here: https://arxiv.org/abs/1008.3477
 
 This module defines two classes to do MPS/MPO operations:
 mps: instantiation of a matrix product state representation of a vector
@@ -10,8 +10,8 @@ mps: instantiation of a matrix product state representation of a vector
 mpo: representation of matrix product operators
     
 This module defines classes that are essential to the MPS/MPO classes:
-site:
-train: collections of sites
+site: collection of coefficients stored as a multi-indexed matrix
+train: collection of sites, usually connected by bonds
 """
 
 __all__ = [

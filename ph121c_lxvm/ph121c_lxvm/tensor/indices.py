@@ -35,7 +35,7 @@ class index (UserList):
             type(self).__name__,
             '(at ', hex(id(self)),
             ', dim=', str(self.dim),
-            ', tag=', str(self.tag),
+            ', tag=', rstr(self.tag),
             ')'
         ])
     
@@ -47,18 +47,25 @@ class index (UserList):
             indent('\ntag=' + rstr(self.tag), 2*level), ',',
             indent('\n)', level), 
         ])
-
+    
+    def update (self):
+        """Update the dim in case someone changes the elements."""
+        self.dim = len(self)
+        
     def __delitem__ (self, i):
-        self.dim -= 1
         super().__delitem__(i)
+        self.update()
         
     def __setitem__ (self, i, item):
-        self.dim += 1
         super().__setitem__(i, item)
+        self.update()
     
     def __eq__ (self, other):
         return id(self) == id(other)
         
+    def __contains__ (self, item):
+        return any( item == e for e in self )
+    
     def del_type (self, typeof):
         for i in reversed(list(range(len(self)))):
             if isinstance(self[i], typeof):
@@ -70,6 +77,11 @@ class index (UserList):
             if isinstance(e, typeof):
                 yield e
                 
+    def take (self, indices):
+        """Emulate the numpy.take() function."""
+        for i in indices:
+            yield self[i]
+            
 class multi_index (index):
     """Represent an ordered collection of indices."""
     def __init__ (self, iterable=()):
@@ -88,25 +100,25 @@ class multi_index (index):
         if not iterable:
             self.dim = 1
         else:
-            self.dim = np.prod([ e.dim for e in iterable ], dtype='int64')
+            self.update()
+    
+    def update (self):
+        """Update the dim in case someone changes the elements."""
+        self.dim = np.prod([ e.dim for e in self ], dtype='int64')
+        self.tag = len(self)
         
     def __delitem__ (self, i):
-        self.dim = self.dim // self[i].dim
-        self.tag -= 1
         super().__delitem__(i)
+        self.update()
         
     def __setitem__ (self, i, item):
         assert isinstance(item, index)
-        self.dim = self.dim // self[i].dim
-        self.dim = self.dim *  item.dim
         super().__setitem__(i, item)
-    
+        self.update()
+        
     def __add__ (self, other):
         assert isinstance(other, self.__class__)
-        if other.dim == 1:
-            return self
-        else:
-            return super().__add__(other)
+        return super().__add__(other)
     
     def __str__ (self):
         return ''.join([
@@ -118,30 +130,29 @@ class multi_index (index):
         
     def pop (self, pos=-1):
         item = super().pop(pos)
-        self.dim = self.dim // item.dim
-        self.tag -= 1
+        self.update()
         return item
         
     def insert (self, pos, item):
         assert isinstance(item, index)
         super().insert(pos, item)
-        self.dim = self.dim * item.dim
-        self.tag += 1
+        self.update()
         
     def append (self, item):
         assert isinstance(item, index)
         super().append(item)
-        self.dim = self.dim * item.dim
-        self.tag += 1
+        self.update()
         
-    def extend (self, *items):
-        assert all(isinstance(e, index) for e in items)
-        super().extend(items)
-        self.dim = self.dim * np.prod([ e.dim for e in items ], dtype='int64')
-        self.tag += len(items)
+    def extend (self, iterable):
+        super().extend(iterable)
+        self.update()
         
     def clear_ones (self):
         """Remove unnecessary indices of dimension one."""
         for i, item in enumerate(self):
             if (len(self) > 1) and (item.dim == 1):
                 del self[i]
+    
+    def slice_ind (self):
+        """Slice this index with subsets of the subindices."""
+        return NotImplemented

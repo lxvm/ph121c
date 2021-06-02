@@ -23,6 +23,21 @@ def test_valid_scheme (r, L, d):
         prev_val = d * r(i)
     return True
 
+def my_arange (dims):
+    """Obfuscation at its best. This is a null op, constucting arange from a multiindex."""
+    index = np.zeros(np.prod(dims), dtype='int64')
+    for i, e in enumerate(dims):
+        prev_dim = np.prod(dims[:i], dtype='int64')
+        next_dim = np.prod(dims[i+1:], dtype='int64')
+        index += np.tile(
+            np.repeat(
+                next_dim *np.arange(e),
+                repeats=next_dim
+            ),
+            reps= prev_dim
+        )
+    return index
+
 def exchange (dima, dimb):
     """Create a permutation that exchanges the order of multi-index a, b.
     
@@ -33,15 +48,55 @@ def exchange (dima, dimb):
     # np.repeat(dimb*np.arange(dima), repeats=dimb) + np.tile(np.arange(dimb), reps=dima)
     return np.tile(dimb*np.arange(dima), reps=dimb) + np.repeat(np.arange(dimb), repeats=dima)
 
+def rexchange(dims):
+    """Returns perm to reverse a np.ndarray of indices reversed(a1, ..., an).
+    
+    UNTESTED!!!
+    """
+    dim_a = dims[0]
+    if dims.size > 2:
+        dim_b = np.prod(dims[1:])
+        return (
+            np.tile(dim_b*np.arange(dim_a), reps=dim_b) 
+            + np.repeat(rexchange(dims[1:]), repeats=dim_a)
+        )
+    else:
+        dim_b = dims[1]
+        return (
+            np.tile(dim_b*np.arange(dim_a), reps=dim_b) 
+            + np.repeat(np.arange(dim_b), repeats=dim_a)
+        )
+
+def multi_index_perm (dims, perm):
+    """Return a slice to permute a multi-index in the computational basis.
+    
+    `dims` and `perm` enumerate 0 to N-1 as the fastest-changing dit to slowest.
+    E.g. perm = np.arange(N) is the identity permutation.
+
+    Arguments:
+    dims :: np.ndarray(N) :: dimensions of each index
+    perm :: np.ndarray(N) :: perm[i] gives the new position of i
+    """
+    assert dims.size == perm.size
+    iperm = np.argsort(perm)
+    new_dims = dims[iperm]
+    index = np.zeros(np.prod(dims), dtype='int64')
+    for i in range(len(dims)):
+        index += np.tile(np.repeat(
+            np.prod(dims[:iperm[i]], dtype='int64') * np.arange(dims[iperm[i]]),
+            repeats=np.prod(new_dims[:i], dtype='int64')
+        ), reps=np.prod(new_dims[i+1:], dtype='int64'))
+    return index
+    
 def get_phys_dim (dim, d):
     """Get the exponent k of d ** k."""
     assert d != 1, 'not a physical meaningful qudit, d = 1'
     count = 0
     eat = dim
-    while eat >= d:
+    while (eat >= d):
+        assert ((eat % d) == 0), 'dimension was not a power of d'
         eat = eat // d
         count += 1
-    assert eat == 1, 'dimension was not a power of d'
     return count
 
 def indent (string, level=0):
@@ -69,3 +124,31 @@ def touches_edge (sequence, container):
         (container.index(e) == 0) or (container.index(e) == (len(container)-1))
         for e in sequence
     )
+
+def direct_sum (A, B):
+    """Calculate the direct sum of two matrices."""
+    assert (A.ndim == B.ndim == 2)
+    result = np.zeros(np.add(A.shape, B.shape))
+    result[:A.shape[0], :A.shape[1]] = A
+    result[A.shape[0]:, A.shape[1]:] = B
+    return result
+
+def chunk_seq (iterable):
+    """Break a sorted iterable of integers into contiguous chunks."""
+    result = []
+    buffer = []
+    last = None
+    for e in iterable:
+        if isinstance(e, int):
+            if (last != None):
+                if ((last + 1) == e):
+                    buffer.append(e)
+                else:
+                    assert (e > last), 'Oops, list not sorted.'
+                    result.append(buffer)
+                    buffer = [e]
+            else:
+                buffer.append(e)
+            last = e
+    result.append(buffer)
+    return result
