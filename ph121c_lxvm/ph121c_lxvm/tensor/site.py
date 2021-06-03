@@ -128,9 +128,9 @@ class site:
         for axis in (0, 1):
             self.ind[axis] += other.ind[axis]
             # Reattach bond pointers
-            for bond_el in self.ind[axis].get_type(bond):
-                if (bond_el.tag[axis^1] == other):
-                    bond_el.tag[axis^1] = self
+            for bnd in self.ind[axis].get_type(bond):
+                if (bnd.tag[axis^1] == other):
+                    bnd.tag[axis^1] = self
         self.mat = direct_sum(self.mat, other.mat)
             
     def test_shape (self):
@@ -230,9 +230,9 @@ class site:
         )
         # Update bond references to this split site
         for axis, i, new_site in [(0, 0, left_site), (1, -1, right_site)]:
-            for bond_el in self.ind[axis].get_type(bond):
-                j = bond_el.tag.index(self)
-                bond_el.tag[j] = new_site
+            for bnd in self.ind[axis].get_type(bond):
+                j = bnd.tag.index(self)
+                bnd.tag[j] = new_site
         # In case caller does not specify canonization, return the weight matrix
         if not canon:
             center_site = self.__class__(
@@ -337,12 +337,12 @@ class site:
         else:
             raise Exception('NoClueError: couldnt decide how to contract bond.')
         # Update bond references to this contracted site
-        for bond_el in new_ind[1].get_type(bond):
+        for bnd in new_ind[1].get_type(bond):
             try:
-                j = bond_el.tag.index(other)
-                bond_el.tag[j] = self
+                j = bnd.tag.index(other)
+                bnd.tag[j] = self
             except ValueError as ex:
-                if bond_el:
+                if bnd:
                     pass
                 else:
                     raise ex
@@ -499,85 +499,120 @@ class site:
         if result:
             return self
         
-    def split_quanta (self, center, trim=None):
+    def split_quanta (self, center, N=1, trim=None):
         """Split the site into sites where each quantum is on its own.
         
         Arguments:
         center :: int :: the quantum whose tag makes it the orthogonality center
+        N :: int :: how many quanta per site (default: 1)
+        Alternatively, if N is a sequence whose sum matches the total number of
+        quanta, the entries of the sequence choose N the group sizes as so:
+        the first entry of N keeps the first N[0] entries together and so on.
         """
-        quanta_tags = [ e.tag for e in self.get_type(quantum) ]
-#         print(quanta_tags, sum( 1 for e in quanta_tags if (e > 0) ))
-        self.reset_pos(center)
-        if (sum( 1 for e in quanta_tags if (e > 0) ) > 1):
-            if (self.all_quanta_tags('>', center, quanta_tags) ^ (center == -1)):
+        output, pos = [self, ], 0
+        NQ = sum( 1 for e in self.get_type(quantum) if (e.tag > 0) )
+        if isinstance(N, int):
+            P_list = [ N for _ in range(NQ) ]
+        elif hasattr(N, '__len__'):
+            assert (sum( int(e) for e in N ) == NQ), \
+                'sequence N does not add up to the total number of quanta'
+            P_list = list(N)
+        else:
+            raise TypeError('N must be an integer, list or tuple')
+        ind = 0
+        
+        def inner_split ():
+            """Instead of recursion, use a closure to solve the problem."""
+            nonlocal P_list, output, pos, ind, center, trim, NQ
+            quanta_tags = [ e.tag for e in output[pos].get_type(quantum) ]
+            Nquanta = sum( 1 for e in quanta_tags if (e > 0) )
+            is_right_of_center = (center == -1) ^ output[pos].all_quanta_tags(
+                '>', center, quanta_tags
+            )
+            P = P_list[
+                (not is_right_of_center) * ind
+                + is_right_of_center * (-ind - 1 + center)
+            ]
+            output[pos].reset_pos(center)
+            if (Nquanta <= P):
+                return False
+            elif is_right_of_center:
                 max_tag = max( abs(e) for e in quanta_tags )
                 try:
-                    self.reshape('flat', 'ff',
+                    output[pos].reshape('flat', 'ff',
                         N=sum(
-                            1 for e in self.ind[0].get_type(quantum)
+                            P for e in output[pos].ind[0].get_type(quantum)
                             if (abs(e.tag) == max_tag)
                         )
                     )
                 except AssertionError:
+                    print('yipee')
                     pass
-#                 print(repr(self.ind))
-                self.reshape('tall', 'ff',
-                    N=sum( 1 for _ in self.ind[1].get_type(quantum) )
+                output[pos].reshape('tall', 'ff',
+                    N=sum( 1 for _ in output[pos].ind[1].get_type(quantum) )
                 )
-#                 print(repr(self.ind))
-                self.reshape('flat', 'ff', 
+                output[pos].reshape('flat', 'ff', 
                     N=sum(
-                        1 for e in self.ind[0].get_type(quantum)
+                        P for e in output[pos].ind[0].get_type(quantum)
                         if (abs(e.tag) == max_tag)
                     )
                 )
-                left_site, right_site = self.split(trim=trim, canon='right')
+                left_site, right_site = output[pos].split(trim=trim, canon='right')
                 right_site.reset_pos(center)
-                return (*left_site.split_quanta(center, trim), right_site)
-            else:
+                output[pos] = left_site
+                output.insert(pos + 1, right_site)
+                return True
+            else: # at or left of center
                 min_tag = min( abs(e) for e in quanta_tags )
                 try:
-                    self.reshape('flat', 'ff', 
+                    output[pos].reshape('flat', 'ff', 
                         N=sum(
                             1 for e in self.ind[0].get_type(quantum)
-                            if (abs(e.tag) > min_tag)
+                            if (abs(e.tag) > (min_tag + P - 1))
                         )
                     )
                 except AssertionError:
+                    print('yikes')
                     pass
-#                 print(repr(self.ind))
-                self.reshape('tall', 'ff',
-                    N=sum( 1 for _ in self.ind[1].get_type(quantum) )
+                output[pos].reshape('tall', 'ff',
+                    N=sum( 1 for _ in output[pos].ind[1].get_type(quantum) )
                 )
-#                 print(repr(self.ind))
-                self.reshape('flat', 'ff', 
+                output[pos].reshape('flat', 'ff', 
                     N=sum(
-                        1 for e in self.ind[0].get_type(quantum)
-                        if (abs(e.tag) > min_tag)
+                        1 for e in output[pos].ind[0].get_type(quantum)
+                        if (abs(e.tag) > (min_tag + P - 1))
                     )
                 )
-#                 print(repr(self.ind))
-                if (min_tag == center):
+                if (center in range(min_tag, min_tag + P)):
                     canon = 'right'
                 else:
                     canon = 'left'
-                left_site, right_site = self.split(trim=trim, canon=canon)
+                left_site, right_site = output[pos].split(trim=trim, canon=canon)
                 left_site.reset_pos(center)
-                return (left_site, *right_site.split_quanta(center, trim))
-        else:
-            # There is only one quantum index at this site (by tag)
-            return (self, )
+                output[pos] = left_site
+                pos += 1
+                output.insert(pos, right_site)
+                return True
+        
+        state = True
+        while state:
+            try:
+                state = inner_split()
+                ind += 1
+            except StopIteration:
+                break
+        return output
 
     def trim_bonds (self, other, chi, result=False):
         """Reduce the total bond dimension between the sites to chi **IN PLACE**."""
         bonds = [ e for e in self.get_type(bond) if (other in e.tag) ]
         assert (len(bonds) == 1), \
             'Trying to trim more than one bond: SVD instead'
-        bond_el = bonds[0]
+        bnd = bonds[0]
         for sight in [self, other]:
             # Find the axis where the bond is
             for axis in (0, 1):
-                if bond_el in sight.ind[axis]:
+                if bnd in sight.ind[axis]:
                     if (axis == 0):
                         aspect_a, aspect_b, trimmings = \
                             'flat', 'tall', 'sight.mat[:chi, :]'
@@ -592,11 +627,9 @@ class site:
             sight.reshape(aspect_a, 'fl', N=N)
             # Bond is distinguished, now trim it
             sight.mat = eval(trimmings)
-#             print(N, sight.ind, sight.mat)
-            # Restore shape
             sight.reshape(aspect_b, 'lf', N=N)
         # Trim bond as well
-        while (len(bond_el) > chi):
-            del bond_el[-1]
+        while (len(bnd) > chi):
+            del bnd[-1]
         if result:
             return self

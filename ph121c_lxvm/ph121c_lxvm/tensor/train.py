@@ -94,7 +94,7 @@ class train (UserList):
         else:
             raise TypeError(f'center={center} needs to be int or site')
         
-    def split_quanta (self, center, sites=(), trim=None, result=False):
+    def split_quanta (self, center, sites=(), N=1, trim=None, result=False):
         """Split the sites in the train by quanta (default: all sites).
         
         Arguments:
@@ -102,11 +102,10 @@ class train (UserList):
         orthogonality center, or a site
         """ 
         if not sites:
-            sites = self
+            sites = [e for e in self]
         for sight in sites:
             pos = self.index(sight)
-            center_tag = self.center_tag(center)
-            new_sites = sight.split_quanta(center_tag, trim=trim)
+            new_sites = sight.split_quanta(self.center_tag(center), N=N, trim=trim)
             del self[pos]
             for e in reversed(new_sites):
                 self.insert(pos, e)
@@ -144,9 +143,9 @@ class train (UserList):
                 else:
                     # canonize from the left
                     try:
-                        bond_el = next(self[i].ind[1].get_type(bond))
+                        bnd = next(self[i].ind[1].get_type(bond))
                         self.split_site(self[i], center_tag)
-                        self.contract_bond(bond_el)
+                        self.contract_bond(bnd)
                     except StopIteration:
                         pass
             elif (side == 'right'):
@@ -154,14 +153,15 @@ class train (UserList):
                 self[j].reset_pos(center_tag)
                 # canonize from the right
                 try:
-                    bond_el = next(self[j].ind[0].get_type(bond))
+                    bnd = next(self[j].ind[0].get_type(bond))
                     self.split_site(self[j], center_tag)
-                    self.contract_bond(bond_el)
+                    self.contract_bond(bnd)
                 except StopIteration:
                     pass
             i += 1
         # Because max of i is len(self) - 2, may need to add the last element
-        center_ind += int((center_tag == -1) or (center_tag > len(self) - 1))
+        if (len(self) > 1):
+            center_ind += int((center_tag == -1) or (center_tag > len(self) - 1))
         self[center_ind].reset_pos(center_tag)
         self.center = self[center_ind]
         if result:
@@ -181,12 +181,12 @@ class train (UserList):
         if not sites:
             sites = self
         for sight in sites:
-            for bond_el in sight.get_type(typeof=bond):
-                if any( e in bond_el.tag for e in sites if (e != sight) ):
-                    if not (bond_el in bonds):
-                        bonds.append(bond_el)
-        for i, bond_el in enumerate(bonds):
-            self.contract_bond(bond_el)
+            for bnd in sight.get_type(typeof=bond):
+                if any( e in bnd.tag for e in sites if (e != sight) ):
+                    if not (bnd in bonds):
+                        bonds.append(bnd)
+        for i, bnd in enumerate(bonds):
+            self.contract_bond(bnd)
         if result:
             return self
     
@@ -218,14 +218,34 @@ class train (UserList):
         quanta_map = [
             [ e.tag for e in sight.get_type(quantum) ] for sight in self
         ]
+        yielded = []
         for e in iterable:
             for i, qset in enumerate(quanta_map):
-                if e in qset:
-                    yield (self[i], e)
+                if (e in qset) and (i not in yielded):
+                    yielded.append(i)
+                    yield self[i]
             
-    def groupby_quanta_tag (self, groupby, result=False):
-        """Regroup quanta so that those in groupby move to one site **IN PLACE**."""
-        return NotImplemented
+    def groupby_quanta_tag (self, tag_group, result=False):
+        """Regroup quanta **IN PLACE** so that those in group fuse into a site.
+        
+        Also makes this new, fused site the orthogonality center.
+        """
+        assert is_consecutive(tag_group)
+        # Only split those sites whose quanta are not subsets of tag_group
+        # This could be done more selectively by only splitting the quanta in
+        # tag group
+        self.split_quanta(self.center, tuple(
+            sight for sight in self.get_sites(tag_group)
+            if any(
+                (e.tag not in tag_group)
+                for e in sight.get_type(quantum)
+                if (e.tag > 0)
+            )
+        ))
+        self.merge_bonds(self.get_sites(tag_group))
+        new_center = list(self.get_sites(tag_group))
+        assert (len(new_center) == 1), 'unable to distinguish site.'
+        self.center = new_center[0]
+        self.canonize(self.center)
         if result:
             return self
-        

@@ -126,13 +126,7 @@ class mpo (train):
         
         for sight in self:
             quanta_tags = list( e.tag for e in sight if (e.tag > 0) )
-            # time to split 
-            mps_in.split_sites(mps_in.center, mps_in.get_sites(quanta_tags))
-            mps_in.merge_bonds(mps_in.get_sites(quanta_tags))
-            new_center = list(mps_in.get_sites(quanta_tags))
-            assert (len(new_center) == 1), 'unable to distinguish site.'
-            new_center = new_center[0]
-            mps_in.canonize(new_center)
+            mps_in.groupby_quanta_tag(quanta_tags)
             # Here is where we apply the operator to the new center
             # we hijack the matching physical indices with bonds
             # we also do this on a copy of each to not cause side-effects

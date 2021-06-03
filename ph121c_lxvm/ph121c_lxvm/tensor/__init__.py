@@ -10,6 +10,7 @@ mps: instantiation of a matrix product state representation of a vector
 mpo: representation of matrix product operators
     
 This module defines classes that are essential to the MPS/MPO classes:
+index: a collection of items in an enumeration
 site: collection of coefficients stored as a multi-indexed matrix
 train: collection of sites, usually connected by bonds
 """

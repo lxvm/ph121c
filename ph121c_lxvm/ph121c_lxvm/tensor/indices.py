@@ -153,6 +153,14 @@ class multi_index (index):
             if (len(self) > 1) and (item.dim == 1):
                 del self[i]
     
-    def slice_ind (self):
-        """Slice this index with subsets of the subindices."""
-        return NotImplemented
+    def tr_ind (self, new_dims, result=True, inplace=False):
+        """Return an array of indices with the indices of a truncated multi-index."""
+        indices = np.arange(self.dim)[multi_index_tr( 
+            tuple(e.dim for e in reversed(self)), new_dims
+        )]
+        if inplace:
+            for i, ind in enumerate(reversed(self)):
+                while (ind.dim > new_dims[i]):
+                    del ind[-1]
+        if result:
+            return indices
