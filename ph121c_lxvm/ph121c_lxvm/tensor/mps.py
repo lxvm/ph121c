@@ -180,8 +180,8 @@ class mps (train):
     def norm (self):
         """Return the norm of the MPS wavefunction."""
         try:
-            ind_in_center = next(iter(self.center.get_type(quantum))).tag
-            self.center.reset_pos(ind_in_center)
+            center_tag = next(iter(self.center.get_type(quantum))).tag
+            self.center.reset_pos(center_tag)
             return np.sqrt(np.trace(
                 self.center.mat @ self.center.mat.T.conj()
             ))

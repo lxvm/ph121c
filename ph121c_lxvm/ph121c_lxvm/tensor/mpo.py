@@ -6,6 +6,8 @@ indices.
 A thorough review in section 5 of: https://arxiv.org/abs/1008.3477.
 """
 
+from copy import copy, deepcopy
+
 import numpy as np
 
 from .utils   import *
@@ -114,13 +116,31 @@ class mpo (train):
                     result = np.kron(result, self[pos].mat)
         return result
 
-    ## These methods must not modify the mps or mpo instance!
+    ## These methods must not modify the mps or mpo instance (except reshape)!
     
     def oper (self, mps_in, inplace=False):
         """Apply operator to a tensor.mps instance."""
         assert isinstance(mps_in, mps)
         assert self.L == mps_in.L
         assert self.d == mps_in.d
+        
+        for sight in self:
+            quanta_tags = list( e.tag for e in sight if (e.tag > 0) )
+            # time to split 
+            mps_in.split_sites(mps_in.center, mps_in.get_sites(quanta_tags))
+            mps_in.merge_bonds(mps_in.get_sites(quanta_tags))
+            new_center = list(mps_in.get_sites(quanta_tags))
+            assert (len(new_center) == 1), 'unable to distinguish site.'
+            new_center = new_center[0]
+            mps_in.canonize(new_center)
+            # Here is where we apply the operator to the new center
+            # we hijack the matching physical indices with bonds
+            # we also do this on a copy of each to not cause side-effects
+            oper = copy(site)
+            if inplace:
+                pass
+            else:
+                pass
         return NotImplemented
 
     def combine (self, mpo_in):

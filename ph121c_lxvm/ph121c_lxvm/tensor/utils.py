@@ -81,13 +81,34 @@ def multi_index_perm (dims, perm):
     iperm = np.argsort(perm)
     new_dims = dims[iperm]
     index = np.zeros(np.prod(dims), dtype='int64')
-    for i in range(len(dims)):
+    for i in range(dims.size):
         index += np.tile(np.repeat(
             np.prod(dims[:iperm[i]], dtype='int64') * np.arange(dims[iperm[i]]),
             repeats=np.prod(new_dims[:i], dtype='int64')
         ), reps=np.prod(new_dims[i+1:], dtype='int64'))
     return index
     
+def multi_index_tr (dims, cut_dims):
+    """Return boolean mask of a truncated multi-index in the computational basis.
+    
+    `dims` and `cut_dims` index 0 to N-1 as the fastest-changing dit to slowest.
+
+    Arguments:
+    dims :: np.ndarray(N) :: dimensions of each index
+    cut_dims :: np.ndarray(N) :: Require 1 <= cut_dims[i] <= dims[i]
+    """
+    assert dims.size == cut_dims.size
+    index = np.full(np.prod(dims), True)
+    for i in range(dims.size):
+        index &= np.tile(np.repeat(
+            np.append(
+                np.full(cut_dims[i], True),
+                np.full(dims[i] - cut_dims[i], False),
+            ),
+            repeats=np.prod(dims[:i], dtype='int64')
+        ), reps=np.prod(dims[i+1:], dtype='int64'))
+    return index
+
 def get_phys_dim (dim, d):
     """Get the exponent k of d ** k."""
     assert d != 1, 'not a physical meaningful qudit, d = 1'

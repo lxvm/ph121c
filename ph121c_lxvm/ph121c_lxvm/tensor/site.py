@@ -5,8 +5,6 @@ It also defines the bond and quantum class, subclassed from index.
 For a picture of a site, see figure 25 of 
 """
 
-from copy import deepcopy
-
 import numpy as np
 
 from .utils   import *
@@ -330,17 +328,26 @@ class site:
         and ((raised_right.dim > 1) or (lowered_right.dim > 1))):
             # This case and the next require an exchange to look like one of the
             # previous cases
+            print('LOCO')
             return NotImplemented
         elif ((raised_right.dim == lowered_right.dim == 1)
         and ((raised_left.dim > 1) or (lowered_left.dim > 1))):
+            print('LOCO')
             return NotImplemented
         else:
             raise Exception('NoClueError: couldnt decide how to contract bond.')
         # Update bond references to this contracted site
-        for axis, i in [(0, 0), (1, -1)]:
-            for bond_el in new_ind[axis].get_type(bond):
+#         for axis in (0, 1):
+        for bond_el in new_ind[1].get_type(bond):
+#             print(repr(bond_el))
+            try:
                 j = bond_el.tag.index(other)
                 bond_el.tag[j] = self
+            except ValueError as ex:
+                if bond_el:
+                    pass
+                else:
+                    raise ex
         # The non-bond lowered indices are merged
         self.mat = left_mat @ right_mat
         self.ind = new_ind
@@ -452,11 +459,27 @@ class site:
         if result:
             return self
         
-    def is_right_of (self, center, tags=None):
-        """Returns True if all quantum indices in the site larger than center."""
+    def all_quanta_tags (self, comp, center, tags=None):
+        """Returns True if all quanta tags in site satisfy inequality with center.
+        
+        Arguments:
+        comp :: str eg: ['>', '<', '>=', '<='] :: binary comparison for integers
+        center :: int :: compare the quantum tags against this
+        """
         if not tags:
             tags = [ e.tag for e in self.get_type(quantum) ]
-        return all( (abs(e) > center) for e in tags ) ^ (center == -1)
+        return all( eval(f'abs(e) {comp} {center}') for e in tags )
+            
+    def any_quantum_tag (self, comp, center, tags=None):
+        """Returns True if any quantum tag in site satisfies inequality with center.
+        
+        Arguments:
+        comp :: str eg: ['>', '<', '>=', '<='] :: binary comparison for integers
+        center :: int :: compare the quantum tags against this
+        """
+        if not tags:
+            tags = [ e.tag for e in self.get_type(quantum) ]
+        return any( eval(f'abs(e) {comp} {center}') for e in tags )
     
     def reset_pos (self, center, result=False):
         """Reset the positions of the indices in the site **IN PLACE**.
@@ -468,12 +491,12 @@ class site:
         their position at the fastest-changing index.
         This moves the bonds to the fastest-index in each axis.
         """
-        if self.is_right_of(center):
+        if (self.all_quanta_tags('>', center) ^ (center == -1)):
             # right of center
             self.group_quanta(groupby=('e.tag > 0', 'e.tag < 0'))
         else:
             # left of center
-            self.group_quanta()
+            self.group_quanta(groupby=('e.tag < 0', 'e.tag > 0'))
         self.sort_ind()
         if result:
             return self
@@ -488,7 +511,7 @@ class site:
 #         print(quanta_tags, sum( 1 for e in quanta_tags if (e > 0) ))
         self.reset_pos(center)
         if (sum( 1 for e in quanta_tags if (e > 0) ) > 1):
-            if self.is_right_of(center, quanta_tags):
+            if (self.all_quanta_tags('>', center, quanta_tags) ^ (center == -1)):
                 max_tag = max( abs(e) for e in quanta_tags )
                 try:
                     self.reshape('flat', 'ff',
