@@ -337,9 +337,7 @@ class site:
         else:
             raise Exception('NoClueError: couldnt decide how to contract bond.')
         # Update bond references to this contracted site
-#         for axis in (0, 1):
         for bond_el in new_ind[1].get_type(bond):
-#             print(repr(bond_el))
             try:
                 j = bond_el.tag.index(other)
                 bond_el.tag[j] = self
@@ -392,7 +390,7 @@ class site:
         if result:
             return self
     
-    def group_quanta (self, groupby=('e.tag < 0', 'e.tag > 0'), result=False):
+    def groupby_quanta_tag (self, groupby=('e.tag < 0', 'e.tag > 0'), result=False):
         """Group physical indices with a filter **IN PLACE**.
         
         By default will lower quantum with + sign and raise with - sign.
@@ -493,10 +491,10 @@ class site:
         """
         if (self.all_quanta_tags('>', center) ^ (center == -1)):
             # right of center
-            self.group_quanta(groupby=('e.tag > 0', 'e.tag < 0'))
+            self.groupby_quanta_tag(groupby=('e.tag > 0', 'e.tag < 0'))
         else:
             # left of center
-            self.group_quanta(groupby=('e.tag < 0', 'e.tag > 0'))
+            self.groupby_quanta_tag(groupby=('e.tag < 0', 'e.tag > 0'))
         self.sort_ind()
         if result:
             return self

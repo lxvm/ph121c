@@ -107,7 +107,7 @@ class mpo (train):
             result = np.eye(self.d ** len(missing_chunks[-1]))
         else:
             result = self[-1].mat
-        for i, chunk in enumerate(all_chunks[:-1]):
+        for chunk in all_chunks[-2::-1]:
             if chunk:
                 if chunk in missing_chunks:
                     result = np.kron(result, np.eye(self.d ** len(chunk)))

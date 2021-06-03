@@ -91,6 +91,7 @@ class mps (train):
         left_of_center = True
         center_pos = -1
         try:
+            # Populate the indices using the inference rules
             for i, arr in enumerate(items):
                 sites[i].mat = arr
                 if left_of_center:
@@ -102,13 +103,13 @@ class mps (train):
                         ))
                     ]))
                     if (i > 0):
-                        # fetch the preceeding bond
+                        # fetch the preceding bond
                         # i == 0 is special: no bond to left
                         sites[i].ind[0].extend(
                             sites[i-1].ind[1].get_type(bond)
                         )
                     if ((i + 1) < len(items)):
-                        # inser the present bond
+                        # insert the present bond
                         # last case is special: no bond to right
                         sites[i].ind[1].append(
                             bond(range(arr.shape[1]), tag=sites[i:i+2])

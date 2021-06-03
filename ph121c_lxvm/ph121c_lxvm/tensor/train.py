@@ -190,13 +190,14 @@ class train (UserList):
         if result:
             return self
     
-    def group_quanta (self, groupby=('e.tag < 0', 'e.tag > 0'), result=False):
-        """Lower all physical indices with + tag, raise those with - tag."""
-        for i in range(len(self.data)):
-            self[i].group_quanta(groupby)
+    def reset_pos (self, result=False):
+        """Reset the indices in each site to match the canonical form **IN PLACE**."""
+        center_tag = self.center_tag(self.center)
+        for sight in self:
+            sight.reset_pos(center_tag)
         if result:
             return self
-        
+
     def view (self):
         """Return the matrices for viewing purposes."""
         return np.array(
@@ -221,3 +222,10 @@ class train (UserList):
             for i, qset in enumerate(quanta_map):
                 if e in qset:
                     yield (self[i], e)
+            
+    def groupby_quanta_tag (self, groupby, result=False):
+        """Regroup quanta so that those in groupby move to one site **IN PLACE**."""
+        return NotImplemented
+        if result:
+            return self
+        
