@@ -100,12 +100,23 @@ class train (UserList):
         Arguments:
         center :: site or int :: the quantum whose tag makes it the
         orthogonality center, or a site
+        N :: int 
         """ 
         if not sites:
             sites = [e for e in self]
-        for sight in sites:
+        if not N:
+            N = 1
+        if isinstance(N, int):
+            P = [ N for _ in range(len(sites)) ]
+        elif hasattr(N, '__len__'):
+            assert (len(N) == len(sites))
+            P = list(N)
+        else:
+            raise TypeError('N must be an integer, list or tuple (nested depth 1)')
+            
+        for i, sight in enumerate(sites):
             pos = self.index(sight)
-            new_sites = sight.split_quanta(self.center_tag(center), N=N, trim=trim)
+            new_sites = sight.split_quanta(self.center_tag(center), N=P[i], trim=trim)
             del self[pos]
             for e in reversed(new_sites):
                 self.insert(pos, e)
@@ -229,19 +240,27 @@ class train (UserList):
         """Regroup quanta **IN PLACE** so that those in group fuse into a site.
         
         Also makes this new, fused site the orthogonality center.
+        
+        Arguments:
+        tag_group :: list/tuple of consecutive integers :: these are merged
         """
         assert is_consecutive(tag_group)
         # Only split those sites whose quanta are not subsets of tag_group
         # This could be done more selectively by only splitting the quanta in
         # tag group
-        self.split_quanta(self.center, tuple(
-            sight for sight in self.get_sites(tag_group)
-            if any(
-                (e.tag not in tag_group)
-                for e in sight.get_type(quantum)
-                if (e.tag > 0)
-            )
-        ))
+        sites, N_list = [], []
+        for sight in self.get_sites(tag_group):
+            quanta_tags = [ e.tag for e in sight.get_type(quantum) ]
+            if any( (e not in tag_group) for e in quanta_tags if (e > 0) ):
+                sites.append(sight)
+                incommon = [ e for e in tag_group if e in quanta_tags ]
+                uncommon = [ e for e in quanta_tags if (e > 0) and (e not in tag_group) ]
+                chunks = chunk_seq(sorted(uncommon))
+                if (len(chunks) <= 2):
+                    N_list.append([ len(e) for e in sorted([incommon, *chunks]) ])
+                else:
+                    raise ValueError('tag_group does not bisect quanta_tags')
+        self.split_quanta(self.center, sites, N_list)
         self.merge_bonds(self.get_sites(tag_group))
         new_center = list(self.get_sites(tag_group))
         assert (len(new_center) == 1), 'unable to distinguish site.'

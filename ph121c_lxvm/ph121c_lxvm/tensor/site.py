@@ -523,7 +523,7 @@ class site:
         
         def inner_split ():
             """Instead of recursion, use a closure to solve the problem."""
-            nonlocal P_list, output, pos, ind, center, trim, NQ
+            nonlocal P_list, output, pos, ind, center, trim
             quanta_tags = [ e.tag for e in output[pos].get_type(quantum) ]
             Nquanta = sum( 1 for e in quanta_tags if (e > 0) )
             is_right_of_center = (center == -1) ^ output[pos].all_quanta_tags(
