@@ -1,5 +1,22 @@
 # Ph 121c
 
+I invite anyone to use this software so long as they follow the Caltech Honor
+Code: 
+
+"No member of the Caltech community shall take unfair advantage of any other member of the Caltech community."
+
+If you find any bugs, I encourage you to report an issue, or even better, to fix
+it a make a pull request.
+
+## Summary
+
+This is a package of code I wrote to do assignments for a course on computation
+in quantum-many body systems. Specifically 1D chains of spins. Herein are
+functions that:
+- Generate TFIM Hamiltonians in sparse and matrix-vector multiplication formats
+- Generate an interface to a tensor manipulation framework for MPS simulations
+- Some functions to measure observables and change bases or permute indices
+
 ## Python 
 
 ### Environment

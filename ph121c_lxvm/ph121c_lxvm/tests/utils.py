@@ -8,9 +8,11 @@ def tfim_sweep (
     bc = np.array(['o', 'c']),
     **kwargs
 ):
-    """Generate parameter values to sweep over"""
-    keys = ['L', 'h', 'bc']
-    keys.extend(kwargs.keys())
-    for values in product(L, h, bc, *kwargs.values()):
-        yield { k : v for k, v in zip(keys, values) }
+    """Generate named TFIM parameter values to sweep over."""
+    yield from sweep(L=L, h=h, bc=bc, **keys)
+    
+def sweep (**kwargs):
+    """Generate named parameter values to sweep over."""
+    for values in product(*kwargs.values()):
+        yield { k : v for k, v in zip(kwargs.keys(), values) }
      

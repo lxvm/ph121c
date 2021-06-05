@@ -116,39 +116,111 @@ class mpo (train):
                     result = np.kron(result, self[pos].mat)
         return result
 
+    def groupby_quanta_tag (self, tag_group, result=False):
+        """Regroup quanta **IN PLACE** so that those in group fuse into a site.
+        
+        Also makes this new, fused site the orthogonality center.
+        
+        Arguments:
+        tag_group :: list/tuple of consecutive integers :: these are merged
+        """
+        # Check for tags not in the operator and insert them as identities
+        quanta_tags = []
+        for sight in self:
+            quanta_tags.append([
+                e.tag for ax in (0, 1)
+                for e in sight.ind[ax].get_type(quantum)
+                if (e.tag > 0)
+            ])
+        to_fill = []
+        for i in tag_group:
+            if not any( i in e for e in quanta_tags ):
+                to_fill.append(i)
+        for chunk in chunk_seq(to_fill):
+            self.set_local_oper(np.eye(self.d ** len(chunk)), min(chunk))
+        return super().groupby_quanta_tag(tag_group, result)
+    
     ## These methods must not modify the mps or mpo instance (except reshape)!
     
-    def oper (self, mps_in, inplace=False):
-        """Apply operator to a tensor.mps instance."""
-        assert isinstance(mps_in, mps)
-        assert self.L == mps_in.L
-        assert self.d == mps_in.d
+    def oper (self, tren, inplace=False):
+        """Apply operator to a tensor.train instance **IN PLACE**.
         
-        for sight in self:
-            quanta_tags = list( e.tag for e in sight if (e.tag > 0) )
-            mps_in.groupby_quanta_tag(quanta_tags)
+        The process of applying the operator without breaking the connectivity
+        looks an awful lot like DNA replication :) There is a zipper of sites
+        which are copied/unzipped and then wound back together again.
+        """
+        assert isinstance(tren, mps)
+        assert self.L == tren.L
+        assert self.d == tren.d
+        
+        prev_train_site = None
+        prev_mpo_site = None
+        copy_train_site = None
+        copy_mpo_site = None
+        output = tren.__class__(L=self.L, d=self.d)
+        
+        for i in range(len(self)):
+#             print(i,i,i,i,i,i,i,i)
+            
+            quanta_tags = [
+                e.tag for e in self[i].get_type(quantum) if (e.tag > 0)
+            ]
+            print('tags', [e.tag for e in self[i].get_type(quantum)])
+#             print(repr(tren), repr(tren.center))
+#             print(quanta_tags)
+#             print(repr(tren[i].ind))
+            tren.groupby_quanta_tag(quanta_tags)
+            center_pos = tren.index(tren.center)
+#             print(repr(tren))
             # Here is where we apply the operator to the new center
             # we hijack the matching physical indices with bonds
             # we also do this on a copy of each to not cause side-effects
-            oper = copy(site)
+#             print('before', repr(self[i].ind))
+            oper = self[i].copy(prev_mpo_site, copy_mpo_site)
+#             print(repr(oper))
             if inplace:
-                pass
+                oper.link_quanta(tren.center)
+#                 print(repr(oper.ind[1]))
+#                 print('contracting')
+                oper.contract(tren.center)
+#                 print(repr(oper.ind[1]))
+#                 print(repr(oper))
+                try: tren.center.relink_bonds(tren[center_pos - 1], 0)
+                except IndexError: pass
+                try: tren.center.relink_bonds(tren[center_pos + 1], 1)
+                except IndexError: pass
+                tren[center_pos] = oper
+                tren.center = oper
             else:
                 pass
-        return NotImplemented
+#                 wave = tren.center.copy(prev_train_site, copy_train_site)
+#                 oper.link_quanta(wave)
+#                 oper.contract(wave)
+#                 print(repr(wave))
+#                 output.append(tren.center)
+#                 prev_train_site = tren.center
+#                 copy_train_site = wave
+#                 output.insert(i, oper)
+#                 output.center = oper
+            prev_mpo_site = self[i]
+            copy_mpo_site = oper
+#             print(repr(tren))
+#             print('after', repr(self[i].ind))
+        if not inplace:
+            return output
 
-    def combine (self, mpo_in):
+    def combine (self, other):
         """Combine two compatible mpo's into one operator."""
-        assert isinstance(mpo_in, self.__class__)
-        assert self.L == mpo_in.L
-        assert self.d == mpo_in.d
+        assert isinstance(other, self.__class__)
+        assert self.L == other.L
+        assert self.d == other.d
         return NotImplemented
     
-    def mel (self, mps_a, mps_b):
+    def mel (self, train_a, train_b):
         """Calculate the matrix element <b|O|a> of this operator."""
-        self.oper(mps_a, inplace=False)
-        return mps_a.inner(mps_b)
+        self.oper(train_a, inplace=False)
+        return train_a.inner(train_b)
     
-    def expval (self, mps_in):
+    def expval (self, tren):
         """Calculate the expectation value <a|O|a> of an operator."""
-        return self.mel(mps_in, mps_in)
+        return self.mel(tren, tren)

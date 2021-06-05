@@ -82,9 +82,13 @@ class index (UserList):
         for i in indices:
             yield self[i]
             
+    def copy (self):
+        """Shallow copy of an index."""
+        return self.__class__(self, self.tag)
+        
 class multi_index (index):
     """Represent an ordered collection of indices."""
-    def __init__ (self, iterable=()):
+    def __init__ (self, iterable=(), tage=None):
         """Create a multi_index from a list of index objects.
         
         With no arguments, creates an empty multi_index of dimension one.
@@ -119,6 +123,7 @@ class multi_index (index):
     def __add__ (self, other):
         assert isinstance(other, self.__class__)
         return super().__add__(other)
+        self.update()
     
     def __str__ (self):
         return ''.join([

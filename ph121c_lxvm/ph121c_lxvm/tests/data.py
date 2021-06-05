@@ -12,7 +12,7 @@ from itertools import combinations
 import scipy.sparse.linalg as sla
 
 from .  import tfim_sweep
-from .. import data, tfim
+from .. import data, models
 
     
 class jobs_test_case (unittest.TestCase):
@@ -20,7 +20,7 @@ class jobs_test_case (unittest.TestCase):
     
     def setUp (self):
         """Set testing parameters"""
-        self.oper = tfim.z.H_sparse
+        self.oper = models.tfim_z.H_sparse
         self.oper_params = [
             {
                 'L'  : set([4, 5]),

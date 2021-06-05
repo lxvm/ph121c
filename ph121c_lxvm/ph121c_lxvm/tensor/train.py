@@ -26,7 +26,7 @@ class train (UserList):
 
     def __setitem__ (self, i, item):
         assert isinstance(item, site)
-        self[i] = item
+        super().__setitem__(i, item)
 
     def split_site (self, site_in, center, trim=None, result=False):
         """Split a site by introducing a bond index (aka SVD)."""
@@ -37,7 +37,7 @@ class train (UserList):
             else:
                 canon = 'left'
         elif isinstance(center, int):
-            quanta_tags = list( e.tag for e in site_in.get_type(quantum) )
+            quanta_tags = [ e.tag for e in site_in.get_type(quantum) ]
             if any( (center >= e) for e in quanta_tags ) or (center == -1):
                 canon = 'left'
             else:
@@ -59,14 +59,15 @@ class train (UserList):
         if result:
             return self
     
-    def contract_bond (self, bond_in, result=False):
+    def contract_bond (self, bnd, result=False):
         """Join two sites by contracting a bond index **IN PLACE**."""
         # Error checking for compatibility with Kronecker product implementation
-        assert isinstance(bond_in, bond), \
-            f'received type {type(bond_in)} but need index.bond'
-        left_pos, right_pos = sorted(self.index(e) for e in bond_in.tag)
+        assert isinstance(bnd, bond), \
+            f'received type {type(bnd)} but need index.bond'
+        left_pos, right_pos = sorted( self.index(e) for e in bnd.tag )
         assert (right_pos - left_pos == 1), \
             'bond should connect adjacent sites.'
+#         print('contracting')
         self[left_pos].contract(self[right_pos])
         # If contracting the center, move it
         if (self.center == self[right_pos]):
@@ -116,7 +117,9 @@ class train (UserList):
             
         for i, sight in enumerate(sites):
             pos = self.index(sight)
+#             print('center tag', self.center_tag(center))
             new_sites = sight.split_quanta(self.center_tag(center), N=P[i], trim=trim)
+#             print('NEW SITES', *[repr(e) for e in new_sites])
             del self[pos]
             for e in reversed(new_sites):
                 self.insert(pos, e)
@@ -171,7 +174,8 @@ class train (UserList):
                     pass
             i += 1
         # Because max of i is len(self) - 2, may need to add the last element
-        if (len(self) > 1):
+        if (len(self) > 1) and (side == 'left'):
+#             print('incrementing center tag', center_tag, i, center_ind)
             center_ind += int((center_tag == -1) or (center_tag > len(self) - 1))
         self[center_ind].reset_pos(center_tag)
         self.center = self[center_ind]
@@ -187,17 +191,19 @@ class train (UserList):
         
     def merge_bonds (self, sites=(), result=False):
         """Contract bonds between given sites **IN PLACE** (default: all)."""
-        bonds = multi_index()
-        sites = tuple(sites)
         if not sites:
             sites = self
-        for sight in sites:
-            for bnd in sight.get_type(typeof=bond):
-                if any( e in bnd.tag for e in sites if (e != sight) ):
-                    if not (bnd in bonds):
-                        bonds.append(bnd)
-        for i, bnd in enumerate(bonds):
-            self.contract_bond(bnd)
+        chunks = chunk_seq(sorted( self.index(e) for e in sites ))
+        count_contractions = 0
+        for chunk in chunks:
+#             print('CHUNKS', chunks)
+            for i in chunk[:-1]:
+#                 print(i - count_contractions)
+                for bnd in self[i - count_contractions].ind[1].get_type(bond):
+#                     print(bnd)
+                    self.contract_bond(bnd)
+                    count_contractions += 1
+                    break
         if result:
             return self
     
@@ -254,17 +260,29 @@ class train (UserList):
             if any( (e not in tag_group) for e in quanta_tags if (e > 0) ):
                 sites.append(sight)
                 incommon = [ e for e in tag_group if e in quanta_tags ]
-                uncommon = [ e for e in quanta_tags if (e > 0) and (e not in tag_group) ]
-                chunks = chunk_seq(sorted(uncommon))
+                uncommon = sorted([
+                    e for e in quanta_tags if (e > 0) and (e not in tag_group)
+                ])
+                chunks = chunk_seq(uncommon)
                 if (len(chunks) <= 2):
                     N_list.append([ len(e) for e in sorted([incommon, *chunks]) ])
                 else:
                     raise ValueError('tag_group does not bisect quanta_tags')
-        self.split_quanta(self.center, sites, N_list)
+#         print('Nlist', N_list)
+#         print('sites', sites)
+        if sites:
+            self.split_quanta(self.center, sites, N_list)
         self.merge_bonds(self.get_sites(tag_group))
         new_center = list(self.get_sites(tag_group))
         assert (len(new_center) == 1), 'unable to distinguish site.'
         self.center = new_center[0]
+#         return self
+#         print('PRE CANON', repr(self))
         self.canonize(self.center)
+#         print('POST CANON', repr(self))
         if result:
             return self
+    
+    def contract_quanta (self, raised, lowered):
+        """Contract matching physical indices."""
+        return NotImplemented

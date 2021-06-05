@@ -1,9 +1,13 @@
 """This module defines a site, the basic data unit of a tensor network.
 
 It also defines the bond and quantum class, subclassed from index.
+The operations/methods on sites are inherently local to the site,
+except that they update bond references where needed.
 
-For a picture of a site, see figure 25 of 
+For a picture of a site, see figure 25 of Schollwoeck
 """
+
+from copy import copy as shallow_copy
 
 import numpy as np
 
@@ -26,6 +30,12 @@ site_reshapes = dict(
         lf=(0, 1, '//', '*', 'C', '-N:', '0', '-1', '', ''),
         ll=(0, 1, '//', '*', 'C', '-N:', 'self.ind[get].tag - i', '-1', ':N', 'N:'),
     ),
+)
+
+site_trims = (
+    # variables correspond to reshapes and slices: aspect_a, aspect_b, trimmings
+    ('flat', 'tall', 'sight.mat[:chi, :]'),
+    ('tall', 'flat', 'sight.mat[:, :chi]'),
 )
 
 class quantum (index):
@@ -53,15 +63,6 @@ class bond (index):
         assert (len(tag) == 2) and all(isinstance(e, site) for e in tag), \
             'Bond must connect two sites.'
         super().__init__(iterable, tag)
-    
-    def __eq__ (self, other):
-        if (isinstance(other, self.__class__)
-        and (self.dim == other.dim)
-        and all( e in other.tag for e in self.tag )
-        ):
-            return True
-        else:
-            return False
 
 class site:
     # On subclassing np.ndarray
@@ -121,18 +122,7 @@ class site:
     
     def __eq__ (self, other):
         return id(self) == id(other)
-    
-    def __iadd__ (self, other):
-        """Do the direct sum of the two sites **IN PLACE**."""
-        assert isinstance(other, site)
-        for axis in (0, 1):
-            self.ind[axis] += other.ind[axis]
-            # Reattach bond pointers
-            for bnd in self.ind[axis].get_type(bond):
-                if (bnd.tag[axis^1] == other):
-                    bnd.tag[axis^1] = self
-        self.mat = direct_sum(self.mat, other.mat)
-            
+       
     def test_shape (self):
         """Return True if the shape of matrix matches that of multi-index."""
         return all(self.mat.shape[i] == e.dim
@@ -231,8 +221,7 @@ class site:
         # Update bond references to this split site
         for axis, i, new_site in [(0, 0, left_site), (1, -1, right_site)]:
             for bnd in self.ind[axis].get_type(bond):
-                j = bnd.tag.index(self)
-                bnd.tag[j] = new_site
+                bnd.tag[bnd.tag.index(self)] = new_site
         # In case caller does not specify canonization, return the weight matrix
         if not canon:
             center_site = self.__class__(
@@ -247,7 +236,7 @@ class site:
             return (left_site, center_site, right_site)
         else:
             left_bond.tag = [left_site, right_site]
-            right_bond.tag = left_bond.tag
+            right_site.ind[0][0] = left_bond
             return (left_site, right_site)
     
     def contract (self, other, result=False):
@@ -257,8 +246,9 @@ class site:
         """
         # Determine bonds that connect this sites' raised index to other's low
         raised, lowered = 1, 0
-        bonds=list(e for e in self.ind[raised].get_type(bond) if other in e.tag)
+        bonds = [ e for e in self.ind[raised].get_type(bond) if other in e.tag ]
         if (len(bonds) == 0):
+            self.product(other)
             if result:
                 return self
             else:
@@ -268,6 +258,7 @@ class site:
                 (self.ind[raised].index(e), other.ind[lowered].index(e))
                 for e in bonds
             )))
+#             print(self_bonds_pos, other_bonds_pos)
         except Exception as e:
             print('BondNotFoundError: Check that you did not already contract.')
             raise e
@@ -286,18 +277,23 @@ class site:
         raised_right  = self.ind[raised][max(self_bonds_pos)+1:]
         lowered_left  = other.ind[lowered][:min(other_bonds_pos)]
         lowered_right = other.ind[lowered][max(other_bonds_pos)+1:]
-        # Casework
+#         print(repr(raised_left))
+#         print(repr(raised_right))
+#         print(repr(lowered_left))
+#         print(repr(lowered_right))
         if (raised_left.dim == raised_right.dim 
         == lowered_left.dim == lowered_right.dim):
             # They all equal one, so there is only a bond index (easy case)
+#             print('case 0')
             left_mat = self.mat
             right_mat = other.mat
             new_ind = multi_index((
-                self.ind[lowered],
-                other.ind[raised],
+                self.ind[lowered] + lowered_right,
+                raised_left + other.ind[raised],
             ))
         elif ((raised_left.dim == lowered_right.dim == 1)
         and ((raised_right.dim > 1) or (lowered_left.dim > 1))):
+#             print('case 1')
             left_mat = np.kron(
                 np.eye(lowered_left.dim),
                 self.mat
@@ -312,6 +308,7 @@ class site:
             ))
         elif ((raised_right.dim == lowered_left.dim == 1)
         and ((raised_left.dim > 1) or (lowered_right.dim > 1))):
+#             print('case 2')
             left_mat = np.kron(
                 self.mat,
                 np.eye(lowered_right.dim)
@@ -337,22 +334,19 @@ class site:
         else:
             raise Exception('NoClueError: couldnt decide how to contract bond.')
         # Update bond references to this contracted site
-        for bnd in new_ind[1].get_type(bond):
-            try:
-                j = bnd.tag.index(other)
-                bnd.tag[j] = self
-            except ValueError as ex:
-                if bnd:
-                    pass
-                else:
-                    raise ex
+#         print(repr(new_ind))
+        for axis in (0, 1):
+            for bnd in new_ind[axis].get_type(bond):
+                try:
+                    bnd.tag[bnd.tag.index(other)] = self
+                except ValueError: pass
         # The non-bond lowered indices are merged
         self.mat = left_mat @ right_mat
         self.ind = new_ind
         if result:
             return self
     
-    def product (self, other, inplace=False):
+    def product (self, other, result=False):
         """Return a Kronecker product between two sites."""
         assert isinstance(other, self.__class__)
         assert len(self.ind) == len(other.ind), \
@@ -362,12 +356,11 @@ class site:
             self.ind[i] + other.ind[i]
             for i in range(len(self.ind))
         ))
-        if inplace:
-            self.mat = new_mat
-            self.ind = new_ind
-        else:
-            return self.__class__(mat=new_mat, ind=new_ind)
-
+        self.mat = new_mat
+        self.ind = new_ind
+        if result:
+            return self
+        
     def permute (self, perm, axis, result=False):
         """Permute one multi-index of the site **IN PLACE**.
         
@@ -469,7 +462,7 @@ class site:
         return all( eval(f'abs(e) {comp} {center}') for e in tags )
             
     def any_quantum_tag (self, comp, center, tags=None):
-        """Returns True if any quantum tag in site satisfies inequality with center.
+        """True if any quantum tag in site satisfies comparison with center.
         
         Arguments:
         comp :: str eg: ['>', '<', '>=', '<='] :: binary comparison for integers
@@ -509,6 +502,7 @@ class site:
         quanta, the entries of the sequence choose N the group sizes as so:
         the first entry of N keeps the first N[0] entries together and so on.
         """
+#         print('splitting', center)
         output, pos = [self, ], 0
         NQ = sum( 1 for e in self.get_type(quantum) if (e.tag > 0) )
         if isinstance(N, int):
@@ -519,21 +513,30 @@ class site:
             P_list = list(N)
         else:
             raise TypeError('N must be an integer, list or tuple')
-        ind = 0
-        
+        left_counter = iter(range(NQ))
+        right_counter = iter(range(-1, -NQ-1, -1))
+#         print('Plist', P_list, 'N', N, NQ)
+#         print('self', repr(self.ind))
+#         print(repr(self))
+#         print(repr(self.ind))
+#         print(list(self.get_type(quantum)))
         def inner_split ():
             """Instead of recursion, use a closure to solve the problem."""
-            nonlocal P_list, output, pos, ind, center, trim
+            nonlocal P_list, output, pos, left_counter, right_counter, center, trim
             quanta_tags = [ e.tag for e in output[pos].get_type(quantum) ]
             Nquanta = sum( 1 for e in quanta_tags if (e > 0) )
             is_right_of_center = (center == -1) ^ output[pos].all_quanta_tags(
                 '>', center, quanta_tags
             )
-            P = P_list[
-                (not is_right_of_center) * ind
-                + is_right_of_center * (-ind - 1 + center)
-            ]
+            if is_right_of_center:
+#                 print('right')
+                P = P_list[next(right_counter)]
+            else:
+#                 print('left')
+                P = P_list[next(left_counter)]
+#             print('  P', P, center)
             output[pos].reset_pos(center)
+            print('POST RESEt', repr(output[pos]))
             if (Nquanta <= P):
                 return False
             elif is_right_of_center:
@@ -577,30 +580,34 @@ class site:
                 output[pos].reshape('tall', 'ff',
                     N=sum( 1 for _ in output[pos].ind[1].get_type(quantum) )
                 )
+#                 print('step 1', repr(output[pos]))
                 output[pos].reshape('flat', 'ff', 
                     N=sum(
                         1 for e in output[pos].ind[0].get_type(quantum)
                         if (abs(e.tag) > (min_tag + P - 1))
                     )
                 )
+#                 print('step 2', repr(output[pos]))
                 if (center in range(min_tag, min_tag + P)):
                     canon = 'right'
                 else:
                     canon = 'left'
                 left_site, right_site = output[pos].split(trim=trim, canon=canon)
                 left_site.reset_pos(center)
+#                 print('step left', repr(left_site))
+#                 print('step right', repr(right_site))
                 output[pos] = left_site
                 pos += 1
                 output.insert(pos, right_site)
+#                 print(output)
                 return True
         
-        state = True
-        while state:
-            try:
-                state = inner_split()
-                ind += 1
-            except StopIteration:
-                break
+        try:
+            while inner_split(): pass
+        except StopIteration: pass
+#         for e in output:
+#             print(repr(e))
+#             print(repr(e.ind))
         return output
 
     def trim_bonds (self, other, chi, result=False):
@@ -613,15 +620,7 @@ class site:
             # Find the axis where the bond is
             for axis in (0, 1):
                 if bnd in sight.ind[axis]:
-                    if (axis == 0):
-                        aspect_a, aspect_b, trimmings = \
-                            'flat', 'tall', 'sight.mat[:chi, :]'
-                    elif (axis == 1):
-                        aspect_a, aspect_b, trimmings = \
-                            'tall', 'flat', 'sight.mat[:, :chi]'
-                    else:
-                        raise ValueError(f'unrecognized axis {axis}.')
-                    break
+                    aspect_a, aspect_b, trimmings = site_trims[axis]
             # Bond should be the last entry in the axis
             N = len(sight.ind[axis][:-1])
             sight.reshape(aspect_a, 'fl', N=N)
@@ -633,3 +632,51 @@ class site:
             del bnd[-1]
         if result:
             return self
+        
+    def copy (self, old=None, new=None, look=(0, 1)):
+        """Return a deep enough copy with updated bond tags.
+        
+        Arguments:
+        old :: site :: external bond target which should be changed to new
+        new :: site :: new bond target
+        look :: tuple subset of (0, 1) :: if an axis is in this tuple, bonds on
+        that axis will be updated
+        """
+        output = shallow_copy(self)
+        output.ind = self.ind.copy()
+        for axis in (0, 1):
+            output.ind[axis] = self.ind[axis].copy()
+            for i, ind in enumerate(output.ind[axis]):
+                output.ind[axis][i] = ind.copy()
+                if isinstance(ind, bond):
+                    # update bond with reference to copied site
+                    for j, e in enumerate(output.ind[axis][i].tag):
+                        if (e == self):
+                            output.ind[axis][i].tag[j] = output
+                        if (e == old):
+                            output.ind[axis][i].tag[j] = new
+        return output
+    
+    def link_quanta (self, lowered):
+        """Replace matching quanta with a bond **IN PLACE**."""
+        bond_pos = (
+            k for k, e in enumerate(lowered.ind[0].get_type(quantum))
+            if (abs(q.tag) == abs(e.tag)) and (q.dim == e.dim)
+        )
+        for i, q in enumerate(self.ind[1].get_type(quantum)):
+            try:
+                bnd = bond(range(q.dim), tag=[self, lowered])
+                self.ind[1][i] = bnd
+                lowered.ind[0][next(bond_pos)] = bnd
+            except StopIteration:
+                print('link did not succeed')
+                pass
+    
+    def relink_bonds (self, other, axis):
+        """Update bonds in self pointing to other in other."""
+        other_bonds_pos = [
+            i for i, e in enumerate(other.ind[axis ^ 1]) if isinstance(e, bond)
+        ]
+        for i, bnd in enumerate(self.ind[axis].get_type(bond)):
+            if other in bnd.tag:
+                other.ind[axis ^ 1][other_bonds_pos[i]] = bnd

@@ -6,7 +6,6 @@ __all__ = [
     'basis',
     'tests',
     'data',
-    'tfim',
 ]
 
 from . import *
