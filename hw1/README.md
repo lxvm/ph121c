@@ -2,6 +2,8 @@
 
 ``You can only be certain of the Heisenbug Uncertainty Principle''
 
+![Fortran Plot Meme](http://www.quickmeme.com/img/3b/3b381802d0824be5a537cbd0c162b37ac02c9a8a67091ede85c4e3dc57a87cf1.jpg)
+
 ## Building this project
 
 You may run `$ ./make_this.sh` to build the project.
