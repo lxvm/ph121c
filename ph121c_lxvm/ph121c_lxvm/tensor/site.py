@@ -19,16 +19,16 @@ site_reshapes = dict(
     # Each tuple gives the values:
     # give, get, row_op, col_op, order, slc, insert, pop, left, right
     tall=dict(
-        ff=(1, 0, '*', '//', 'C', ':N', 'i', '0', ':-N', '-N:'),
+        ff=(1, 0, '*', '//', 'C', ':N', 'i', '0', 'N:', ':N'),
         fl=(1, 0, '*', '//', 'C', ':N', 'self.ind[get].tag', '0', '', ''),
         lf=(1, 0, '*', '//', 'F', '-N:', '0', '-1', '', ''),
-        ll=(1, 0, '*', '//', 'F', '-N:', 'self.ind[get].tag - i', '-1', ':N', 'N:'),
+        ll=(1, 0, '*', '//', 'F', '-N:', 'self.ind[get].tag - i', '-1', '-N:', ':-N'),
     ),
     flat=dict(
-        ff=(0, 1, '//', '*', 'F', ':N', 'i', '0', ':-N', '-N:'),
+        ff=(0, 1, '//', '*', 'F', ':N', 'i', '0', 'N:', ':N'),
         fl=(0, 1, '//', '*', 'F', ':N', 'self.ind[get].tag', '0', '', ''),
         lf=(0, 1, '//', '*', 'C', '-N:', '0', '-1', '', ''),
-        ll=(0, 1, '//', '*', 'C', '-N:', 'self.ind[get].tag - i', '-1', ':N', 'N:'),
+        ll=(0, 1, '//', '*', 'C', '-N:', 'self.ind[get].tag - i', '-1', '-N:', ':-N'),
     ),
 )
 
@@ -50,6 +50,7 @@ class quantum (index):
         assert isinstance(tag, int) and (tag != 0), \
             'Physical index must be tagged by nonzero int.'
         super().__init__(iterable, tag)
+        
     
 class bond (index):
     """This class represents a bond/virtual index."""
@@ -64,6 +65,7 @@ class bond (index):
             'Bond must connect two sites.'
         super().__init__(iterable, tag)
 
+        
 class site:
     # On subclassing np.ndarray
     # https://numpy.org/doc/stable/user/basics.subclassing.html
@@ -114,10 +116,10 @@ class site:
     
     def __repr__ (self, level=2):
         return ''.join([
-            type(self).__name__, '(at ', hex(id(self)),
-            indent(',\nmat=(' + indent('\n' + repr(self.mat), level) + '\n)', level),
-            indent(',\nind=(' + str(self.ind) + '\n)', level),
-            ')'
+            type(self).__name__, '( # at ',  hex(id(self)),
+            indent('\n' + repr(self.mat) + ',', level),
+            indent('\n' + str(self.ind), level),
+            '\n)'
         ])
     
     def __eq__ (self, other):
@@ -125,9 +127,17 @@ class site:
        
     def test_shape (self):
         """Return True if the shape of matrix matches that of multi-index."""
-        return all(self.mat.shape[i] == e.dim
-                   for i, e in enumerate(self.ind))
-    
+        return all( self.mat.shape[i] == e.dim for i, e in enumerate(self.ind) )
+       
+    def transpose (self):
+        """Transpose the site **IN PLACE**."""
+        self.mat = self.mat.T
+        self.ind = multi_index(tuple(reversed(self.ind)))
+
+    def conj (self):
+        """Conjugate the entries of the matrix **IN PLACE**."""
+        self.mat = self.mat.conj()
+
     def get_type (self, typeof=index, axes=(0, 1)):
         """Return pointers to instances of type of index object in the site.
         
@@ -137,24 +147,77 @@ class site:
         """
         for axis in axes:
             yield from self.ind[axis].get_type(typeof)
-
-    def transpose (self, inplace=True):
-        """Return a new site which is the transpose of the original."""
-        new_mat = self.mat.T
-        new_ind = multi_index(tuple(reversed(self.ind)))
-        if inplace:
-            self.mat = new_mat
-            self.ind = new_ind
-        else:
-            return self.__class__(mat=new_mat, ind=new_ind)
-
-    def conj (self, inplace=True):
-        """Conjugate the entries of the matrix"""
-        new_mat = self.mat.conj()
-        if inplace:
-            self.mat = new_mat
-        else:
-            return self.__class__(mat=new_mat, ind=self.ind)
+        
+    def all_quanta_tags (self, comp, center, tags=None):
+        """Returns True if all quanta tags in site satisfy inequality with center.
+        
+        Arguments:
+        comp :: str eg: ['>', '<', '>=', '<='] :: binary comparison for integers
+        center :: int :: compare the quantum tags against this
+        """
+        if not tags:
+            tags = [ e.tag for e in self.get_type(quantum) ]
+        return all( eval(f'abs(e) {comp} {center}') for e in tags )
+            
+    def any_quantum_tag (self, comp, center, tags=None):
+        """True if any quantum tag in site satisfies comparison with center.
+        
+        Arguments:
+        comp :: str eg: ['>', '<', '>=', '<='] :: binary comparison for integers
+        center :: int :: compare the quantum tags against this
+        """
+        if not tags:
+            tags = [ e.tag for e in self.get_type(quantum) ]
+        return any( eval(f'abs(e) {comp} {center}') for e in tags )
+     
+    def link_quanta (self, lowered):
+        """Replace matching quanta with a bond **IN PLACE**."""
+        bond_pos = (
+            k for k, e in enumerate(lowered.ind[0].get_type(quantum))
+            if (abs(q.tag) == abs(e.tag)) and (q.dim == e.dim)
+        )
+        for i, q in enumerate(self.ind[1].get_type(quantum)):
+            try:
+                bnd = bond(range(q.dim), tag=[self, lowered])
+                self.ind[1][i] = bnd
+                lowered.ind[0][next(bond_pos)] = bnd
+            except StopIteration:
+                print('link did not succeed')
+                pass
+    
+    def relink_bonds (self, other, axis):
+        """Update bonds in self pointing to other in other."""
+        other_bonds_pos = [
+            i for i, e in enumerate(other.ind[axis ^ 1]) if isinstance(e, bond)
+        ]
+        for i, bnd in enumerate(self.ind[axis].get_type(bond)):
+            if other in bnd.tag:
+                other.ind[axis ^ 1][other_bonds_pos[i]] = bnd
+                        
+    def copy (self, old=None, new=None):
+        """Return a deep enough copy with updated bond tags.
+        
+        Arguments:
+        old :: site :: external bond target which should be changed to new
+        new :: site :: new bond target
+        look :: tuple subset of (0, 1) :: if an axis is in this tuple, bonds on
+        that axis will be updated
+        """
+        output = shallow_copy(self)
+        output.ind = self.ind.copy()
+        for axis in (0, 1):
+            output.ind[axis] = self.ind[axis].copy()
+            for i, ind in enumerate(output.ind[axis]):
+                output.ind[axis][i] = ind.copy()
+                if isinstance(ind, bond):
+                    output.ind[axis][i].tag = output.ind[axis][i].tag.copy()
+                    # update bond with reference to copied site
+                    for j, e in enumerate(output.ind[axis][i].tag):
+                        if (e == self):
+                            output.ind[axis][i].tag[j] = output
+                        if (e == old):
+                            output.ind[axis][i].tag[j] = new
+        return output
 
     def reshape (self, how, which, N=1):
         """Pop N indices from column into row or vice versa **IN PLACE**.
@@ -188,9 +251,169 @@ class site:
                 ), 
                 axis=get
             ) 
+        
+    def permute (self, perm, axis):
+        """Permute one multi-index of the site **IN PLACE**.
+        
+        Arguments:
+        perm :: multi_index :: this will become the new multi-index
+        """
+        assert isinstance(perm, multi_index)
+        if not (perm.data == self.ind[axis].data):
+            # The fastest index is stored last in these multi-indices
+            inds, dims = [], []
+            toy = multi_index(list(reversed(perm)))
+            for e in reversed(self.ind[axis]):
+                inds.append(toy.index(e))
+                dims.append(toy[inds[-1]].dim)
+            # multi_index_perm takes the fastest index first
+            new_mat = self.mat.take(multi_index_perm(
+                np.asarray(dims), np.asarray(inds)), axis=axis)
+            self.mat = new_mat
+            self.ind[axis] = perm
+            
+    def trim_bonds (self, other, chi):
+        """Limit the max bond dimension between two sites to chi **IN PLACE**."""
+        bonds = [ e for e in self.get_type(bond) if (other in e.tag) ]
+        assert (len(bonds) == 1), \
+            f'Trying to trim {len(bonds)} bonds: if > 1, SVD instead.'
+        bnd = bonds[0]
+        for sight in [self, other]:
+            # Find the axis where the bond is
+            for axis in (0, 1):
+                if bnd in sight.ind[axis]:
+                    aspect_a, aspect_b, trimmings = site_trims[axis]
+                    break
+            # Bond should be the last entry in the axis
+            N = len(sight.ind[axis][:-1])
+            sight.reshape(aspect_a, 'fl', N=N)
+            # Bond is distinguished, now trim it
+            sight.mat = eval(trimmings)
+            sight.reshape(aspect_b, 'lf', N=N)
+        # Trim bond as well
+        while (len(bnd) > chi):
+            del bnd[-1]
 
+    def groupby_quanta_tag (self, groupby=('e.tag < 0', 'e.tag > 0')):
+        """Group physical indices with a filter **IN PLACE**.
+        
+        By default will lower quantum with + sign and raise with - sign.
+        The argument `groupby` is a tuple of strings indexed by `axis`
+        that will be evaluated in a boolean context (if statement).
+        It may also use `e` which will be only instances of quantum.
+        Statements which evaluate to true will move that index to other axis.
+        """
+        for axis, aspect in enumerate(['flat', 'tall']):
+            left = multi_index()
+            right = multi_index()
+            bonds = multi_index()
+            for e in self.ind[axis]:
+                if isinstance(e, quantum): 
+                    if (eval(groupby[axis])):
+                        right.append(e)
+                    else:
+                        left.append(e)
+                elif isinstance(e, bond):
+                    bonds.append(e)
+                else:
+                    raise TypeError(f'Unrecognized index type: {type(e)}.')
+            if (left or right):
+                self.permute(left + bonds + right, axis=axis)
+                self.reshape(aspect, 'lf', N=right.tag)
+    
+    def sort_ind (self, axes=(0, 1)):
+        """Sorts the quanta in the site in the computational basis **IN PLACE**.
+        
+        Also place bonds into fastest position:
+        E.g. multi_index((a), (1), (2), (-2), (-1), (b))
+        -->  multi_index((2), (-2), (1), (-1), (a), (b))
+        """
+        for axis in axes:
+            if self.ind[axis]:
+                quanta = multi_index()
+                bonds = multi_index()
+                for ind in self.ind[axis]:
+                    if isinstance(ind, bond):
+                        bonds.append(ind)
+                    elif isinstance(ind, quantum):
+                        quanta.append(ind)
+                # sort the physical indices by magnitude then sign
+                # Recall that quanta are 1-indexed but sites are 0-indexed
+                try:
+                    quanta = multi_index(list(quanta.take(reversed(list(zip(*sorted(
+                        (abs(f.tag) - 1, i) for i, f in enumerate(quanta)
+                    )))[1]))))
+                    for i, quant in enumerate(quanta[:-1]):
+                        if ((abs(quant.tag) == abs(quanta[i+1].tag))
+                        and (quant.tag < quanta[i+1].tag)):
+                            quanta[i]   = quanta[i+1]
+                            quanta[i+1] = quant
+                except IndexError as ex:
+                    if (sum( 1 for _ in quanta ) == 0):
+                        pass
+                    else:
+                        raise ex
+                if bonds:
+                    quanta.extend(bonds)
+                self.permute(quanta, axis)
+
+    def reset_pos (self, center):
+        """Reset the positions of the indices in the site **IN PLACE**.
+        
+        center :: int :: the quantum whose tag makes it the orthogonality center
+        To the left and at the center, the quanta with tag > 0 will be placed
+        in the rows, while those with tag < 0 will be placed in the columns.
+        To the right of the center, this is reversed. The bonds will remain in
+        their position at the fastest-changing index.
+        This moves the bonds to the fastest-index in each axis.
+        """
+        if (self.all_quanta_tags('>', center) ^ (center == -1)):
+            # right of center
+            self.groupby_quanta_tag(groupby=('e.tag > 0', 'e.tag < 0'))
+        else:
+            # left of center
+            self.groupby_quanta_tag(groupby=('e.tag < 0', 'e.tag > 0'))
+        self.sort_ind()
+
+    def contract (self, other):
+        """Contract all bonds between two sites **IN PLACE**.
+        
+        The site on whom the method is called get its indices in the fastest
+        changing positions, while the one in the argument gets its indices in
+        the slowest-changing position. This is to preserve the order of the
+        computational basis, since in general the quanta are enumerated in sites
+        from left to right which is also the order of fastest changing to
+        slowest changing sites. Also, `sort_ind` is called to sort bonds.
+        
+        If necessary, call sort_ind or reset_pos to reset the indices.
+        
+        If the sites share no bonds, the Kronecker product is the result.
+        """
+        assert isinstance(other, self.__class__)
+        bonds = multi_index(
+            [ e for e in self.ind[1].get_type(bond) if other in e.tag ]
+        )
+        assert all( e in other.ind[0] for e in bonds ), 'bond tag inconsistent'
+        raised = multi_index([ e for e in self.ind[1] if e not in bonds ])
+        lowered = multi_index([ e for e in other.ind[0] if e not in bonds ])
+        self.permute(bonds + raised, 1)
+        other.permute(lowered + bonds, 0)
+        self.mat = np.kron(np.eye(lowered.dim), self.mat) \
+            @ np.kron(other.mat, np.eye(raised.dim))
+        self.ind[0] = lowered + self.ind[0]
+        self.ind[1] = other.ind[1] + raised
+        self.sort_ind()
+        # Update bond references to this contracted site
+        for axis in (0, 1):
+            for bnd in self.ind[axis].get_type(bond):
+                try:
+                    bnd.tag[bnd.tag.index(other)] = self
+                except ValueError:
+                    pass 
+                
     def split (self, trim=None, canon=None, full_matrices=False, row=0, col=1):
         """Create a bond via SVD, leading to three new sites: u, s, vh.
+        If canon is 'left' or 'right' then s is multiplied into vh or u, resp.
         
         Updates bond tags **IN PLACE**
         """
@@ -238,260 +461,7 @@ class site:
             left_bond.tag = [left_site, right_site]
             right_site.ind[0][0] = left_bond
             return (left_site, right_site)
-    
-    def contract (self, other, result=False):
-        """Contract consecutive bonds between two sites
-        
-        Updates bond pointers **IN PLACE**, so it is not a 'pure' procedure.
-        """
-        # Determine bonds that connect this sites' raised index to other's low
-        raised, lowered = 1, 0
-        bonds = [ e for e in self.ind[raised].get_type(bond) if other in e.tag ]
-        if (len(bonds) == 0):
-            self.product(other)
-            if result:
-                return self
-            else:
-                return
-        try:
-            self_bonds_pos, other_bonds_pos = list(zip(*(
-                (self.ind[raised].index(e), other.ind[lowered].index(e))
-                for e in bonds
-            )))
-#             print(self_bonds_pos, other_bonds_pos)
-        except Exception as e:
-            print('BondNotFoundError: Check that you did not already contract.')
-            raise e
-        assert all(
-            bonds_pos == tuple(range(min(bonds_pos), max(bonds_pos) + 1))
-            for bonds_pos in [self_bonds_pos, other_bonds_pos]
-        ), f'OrderNotImplemented: {self_bonds_pos} and {other_bonds_pos} found.'
-        assert all(
-            (bonds_pos[0] == 0) or (bonds_pos[-1] == (len(who) - 1))
-            for bonds_pos, who in 
-            [(self_bonds_pos, self.ind[raised]),
-             (other_bonds_pos, other.ind[lowered])]
-        ), f'OrderNotImplemented: {self_bonds_pos} and {other_bonds_pos} found.'
-        # At this point, bond positions are consecutive, sorted, and extremal
-        raised_left   = self.ind[raised][:min(self_bonds_pos)]
-        raised_right  = self.ind[raised][max(self_bonds_pos)+1:]
-        lowered_left  = other.ind[lowered][:min(other_bonds_pos)]
-        lowered_right = other.ind[lowered][max(other_bonds_pos)+1:]
-#         print(repr(raised_left))
-#         print(repr(raised_right))
-#         print(repr(lowered_left))
-#         print(repr(lowered_right))
-        if (raised_left.dim == raised_right.dim 
-        == lowered_left.dim == lowered_right.dim):
-            # They all equal one, so there is only a bond index (easy case)
-#             print('case 0')
-            left_mat = self.mat
-            right_mat = other.mat
-            new_ind = multi_index((
-                self.ind[lowered] + lowered_right,
-                raised_left + other.ind[raised],
-            ))
-        elif ((raised_left.dim == lowered_right.dim == 1)
-        and ((raised_right.dim > 1) or (lowered_left.dim > 1))):
-#             print('case 1')
-            left_mat = np.kron(
-                np.eye(lowered_left.dim),
-                self.mat
-            )
-            right_mat = np.kron(
-                other.mat,
-                np.eye(raised_right.dim)
-            )
-            new_ind = multi_index((
-                lowered_left + self.ind[lowered], 
-                other.ind[raised] + raised_right,
-            ))
-        elif ((raised_right.dim == lowered_left.dim == 1)
-        and ((raised_left.dim > 1) or (lowered_right.dim > 1))):
-#             print('case 2')
-            left_mat = np.kron(
-                self.mat,
-                np.eye(lowered_right.dim)
-            )
-            right_mat = np.kron(
-                np.eye(raised_left.dim),
-                other.mat
-            )
-            new_ind = multi_index((
-                self.ind[lowered] + lowered_right, 
-                raised_left + other.ind[raised],
-            ))
-        elif ((raised_left.dim == lowered_left.dim == 1)
-        and ((raised_right.dim > 1) or (lowered_right.dim > 1))):
-            # This case and the next require an exchange to look like one of the
-            # previous cases
-            print('LOCO')
-            return NotImplemented
-        elif ((raised_right.dim == lowered_right.dim == 1)
-        and ((raised_left.dim > 1) or (lowered_left.dim > 1))):
-            print('LOCO')
-            return NotImplemented
-        else:
-            raise Exception('NoClueError: couldnt decide how to contract bond.')
-        # Update bond references to this contracted site
-#         print(repr(new_ind))
-        for axis in (0, 1):
-            for bnd in new_ind[axis].get_type(bond):
-                try:
-                    bnd.tag[bnd.tag.index(other)] = self
-                except ValueError: pass
-        # The non-bond lowered indices are merged
-        self.mat = left_mat @ right_mat
-        self.ind = new_ind
-        if result:
-            return self
-    
-    def product (self, other, result=False):
-        """Return a Kronecker product between two sites."""
-        assert isinstance(other, self.__class__)
-        assert len(self.ind) == len(other.ind), \
-            'Requires same ndim: could be generalized?'
-        new_mat = np.kron(self.mat, other.mat)
-        new_ind = multi_index(tuple(
-            self.ind[i] + other.ind[i]
-            for i in range(len(self.ind))
-        ))
-        self.mat = new_mat
-        self.ind = new_ind
-        if result:
-            return self
-        
-    def permute (self, perm, axis, result=False):
-        """Permute one multi-index of the site **IN PLACE**.
-        
-        Arguments:
-        perm :: multi_index :: this will become the new multi-index
-        """
-        assert isinstance(perm, multi_index)
-        if not (perm.data == self.ind[axis].data):
-            # The fastest index is stored last in these multi-indices
-            inds, dims = [], []
-            toy = multi_index(list(reversed(perm)))
-            for e in reversed(self.ind[axis]):
-                inds.append(toy.index(e))
-                dims.append(toy[inds[-1]].dim)
-            # multi_index_perm takes the fastest index first
-            new_mat = self.mat.take(multi_index_perm(
-                np.asarray(dims), np.asarray(inds)), axis=axis)
-            self.mat = new_mat
-            self.ind[axis] = perm
-        if result:
-            return self
-    
-    def groupby_quanta_tag (self, groupby=('e.tag < 0', 'e.tag > 0'), result=False):
-        """Group physical indices with a filter **IN PLACE**.
-        
-        By default will lower quantum with + sign and raise with - sign.
-        The argument `groupby` is a tuple of strings indexed by `axis`
-        that will be evaluated in a boolean context (if statement).
-        It may also use `e` which will be only instances of quantum.
-        Statements which evaluate to true will move that index to other axis.
-        """
-        for axis, aspect in enumerate(['flat', 'tall']):
-            left = multi_index()
-            right = multi_index()
-            bonds = multi_index()
-            for e in self.ind[axis]:
-                if isinstance(e, quantum): 
-                    if (eval(groupby[axis])):
-                        right.append(e)
-                    else:
-                        left.append(e)
-                elif isinstance(e, bond):
-                    bonds.append(e)
-                else:
-                    raise TypeError(f'Unrecognized index type: {type(e)}.')
-            if (left or right):
-                self.permute(left + bonds + right, axis=axis)
-                self.reshape(aspect, 'lf', N=right.tag)
-        if result:
-            return self
-    
-    def sort_ind (self, axes=(0, 1), result=False):
-        """Sorts the quanta in the site in the computational basis **IN PLACE**.
-        
-        Also place bonds into fastest position:
-        E.g. multi_index((a), (1), (2), (-2), (-1), (b))
-        -->  multi_index((2), (-2), (1), (-1), (a), (b))
-        """
-        for axis in axes:
-            if self.ind[axis]:
-                quanta = multi_index()
-                bonds = multi_index()
-                for ind in self.ind[axis]:
-                    if isinstance(ind, bond):
-                        bonds.append(ind)
-                    elif isinstance(ind, quantum):
-                        quanta.append(ind)
-                # sort the physical indices by magnitude then sign
-                # Recall that quanta are 1-indexed but sites are 0-indexed
-                try:
-                    quanta = multi_index(list(quanta.take(reversed(list(zip(*sorted(
-                        (abs(f.tag) - 1, i) for i, f in enumerate(quanta)
-                    )))[1]))))
-                    for i, quant in enumerate(quanta[:-1]):
-                        if ((abs(quant.tag) == abs(quanta[i+1].tag))
-                        and (quant.tag < quanta[i+1].tag)):
-                            quanta[i]   = quanta[i+1]
-                            quanta[i+1] = quant
-                except IndexError as ex:
-                    if (sum( 1 for _ in quanta ) == 0):
-                        pass
-                    else:
-                        raise ex
-                if bonds:
-                    quanta.extend(bonds)
-                self.permute(quanta, axis)
-        if result:
-            return self
-        
-    def all_quanta_tags (self, comp, center, tags=None):
-        """Returns True if all quanta tags in site satisfy inequality with center.
-        
-        Arguments:
-        comp :: str eg: ['>', '<', '>=', '<='] :: binary comparison for integers
-        center :: int :: compare the quantum tags against this
-        """
-        if not tags:
-            tags = [ e.tag for e in self.get_type(quantum) ]
-        return all( eval(f'abs(e) {comp} {center}') for e in tags )
-            
-    def any_quantum_tag (self, comp, center, tags=None):
-        """True if any quantum tag in site satisfies comparison with center.
-        
-        Arguments:
-        comp :: str eg: ['>', '<', '>=', '<='] :: binary comparison for integers
-        center :: int :: compare the quantum tags against this
-        """
-        if not tags:
-            tags = [ e.tag for e in self.get_type(quantum) ]
-        return any( eval(f'abs(e) {comp} {center}') for e in tags )
-    
-    def reset_pos (self, center, result=False):
-        """Reset the positions of the indices in the site **IN PLACE**.
-        
-        center :: int :: the quantum whose tag makes it the orthogonality center
-        To the left and at the center, the quanta with tag > 0 will be placed
-        in the rows, while those with tag < 0 will be placed in the columns.
-        To the right of the center, this is reversed. The bonds will remain in
-        their position at the fastest-changing index.
-        This moves the bonds to the fastest-index in each axis.
-        """
-        if (self.all_quanta_tags('>', center) ^ (center == -1)):
-            # right of center
-            self.groupby_quanta_tag(groupby=('e.tag > 0', 'e.tag < 0'))
-        else:
-            # left of center
-            self.groupby_quanta_tag(groupby=('e.tag < 0', 'e.tag > 0'))
-        self.sort_ind()
-        if result:
-            return self
-        
+
     def split_quanta (self, center, N=1, trim=None):
         """Split the site into sites where each quantum is on its own.
         
@@ -503,7 +473,6 @@ class site:
         the first entry of N keeps the first N[0] entries together and so on.
         """
 #         print('splitting', center)
-        output, pos = [self, ], 0
         NQ = sum( 1 for e in self.get_type(quantum) if (e.tag > 0) )
         if isinstance(N, int):
             P_list = [ N for _ in range(NQ) ]
@@ -515,6 +484,7 @@ class site:
             raise TypeError('N must be an integer, list or tuple')
         left_counter = iter(range(NQ))
         right_counter = iter(range(-1, -NQ-1, -1))
+        output, pos = [self, ], 0
 #         print('Plist', P_list, 'N', N, NQ)
 #         print('self', repr(self.ind))
 #         print(repr(self))
@@ -536,8 +506,9 @@ class site:
                 P = P_list[next(left_counter)]
 #             print('  P', P, center)
             output[pos].reset_pos(center)
-            print('POST RESEt', repr(output[pos]))
+#             print('POST RESEt', is_right_of_center, repr(output[pos]))
             if (Nquanta <= P):
+#                 print('nquanta <= P')
                 return False
             elif is_right_of_center:
                 max_tag = max( abs(e) for e in quanta_tags )
@@ -609,74 +580,3 @@ class site:
 #             print(repr(e))
 #             print(repr(e.ind))
         return output
-
-    def trim_bonds (self, other, chi, result=False):
-        """Reduce the total bond dimension between the sites to chi **IN PLACE**."""
-        bonds = [ e for e in self.get_type(bond) if (other in e.tag) ]
-        assert (len(bonds) == 1), \
-            'Trying to trim more than one bond: SVD instead'
-        bnd = bonds[0]
-        for sight in [self, other]:
-            # Find the axis where the bond is
-            for axis in (0, 1):
-                if bnd in sight.ind[axis]:
-                    aspect_a, aspect_b, trimmings = site_trims[axis]
-            # Bond should be the last entry in the axis
-            N = len(sight.ind[axis][:-1])
-            sight.reshape(aspect_a, 'fl', N=N)
-            # Bond is distinguished, now trim it
-            sight.mat = eval(trimmings)
-            sight.reshape(aspect_b, 'lf', N=N)
-        # Trim bond as well
-        while (len(bnd) > chi):
-            del bnd[-1]
-        if result:
-            return self
-        
-    def copy (self, old=None, new=None, look=(0, 1)):
-        """Return a deep enough copy with updated bond tags.
-        
-        Arguments:
-        old :: site :: external bond target which should be changed to new
-        new :: site :: new bond target
-        look :: tuple subset of (0, 1) :: if an axis is in this tuple, bonds on
-        that axis will be updated
-        """
-        output = shallow_copy(self)
-        output.ind = self.ind.copy()
-        for axis in (0, 1):
-            output.ind[axis] = self.ind[axis].copy()
-            for i, ind in enumerate(output.ind[axis]):
-                output.ind[axis][i] = ind.copy()
-                if isinstance(ind, bond):
-                    # update bond with reference to copied site
-                    for j, e in enumerate(output.ind[axis][i].tag):
-                        if (e == self):
-                            output.ind[axis][i].tag[j] = output
-                        if (e == old):
-                            output.ind[axis][i].tag[j] = new
-        return output
-    
-    def link_quanta (self, lowered):
-        """Replace matching quanta with a bond **IN PLACE**."""
-        bond_pos = (
-            k for k, e in enumerate(lowered.ind[0].get_type(quantum))
-            if (abs(q.tag) == abs(e.tag)) and (q.dim == e.dim)
-        )
-        for i, q in enumerate(self.ind[1].get_type(quantum)):
-            try:
-                bnd = bond(range(q.dim), tag=[self, lowered])
-                self.ind[1][i] = bnd
-                lowered.ind[0][next(bond_pos)] = bnd
-            except StopIteration:
-                print('link did not succeed')
-                pass
-    
-    def relink_bonds (self, other, axis):
-        """Update bonds in self pointing to other in other."""
-        other_bonds_pos = [
-            i for i, e in enumerate(other.ind[axis ^ 1]) if isinstance(e, bond)
-        ]
-        for i, bnd in enumerate(self.ind[axis].get_type(bond)):
-            if other in bnd.tag:
-                other.ind[axis ^ 1][other_bonds_pos[i]] = bnd

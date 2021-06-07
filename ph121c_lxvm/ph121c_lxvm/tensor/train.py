@@ -7,7 +7,6 @@ index: both will be in the new orthogonality center.
 My convention is that unless the train is right-canonical, the physical index
 is always lowered at the orthogonality center.
 """
-from copy import deepcopy
 from collections import UserList
 
 from .utils import *
@@ -27,8 +26,96 @@ class train (UserList):
     def __setitem__ (self, i, item):
         assert isinstance(item, site)
         super().__setitem__(i, item)
+            
+    def max_quantum_tag (self, sight):
+        """Return the tag of the largest quantum at site. If None, look left."""
+        try:
+            return max( e.tag for e in sight.get_type(quantum) )
+        except ValueError as ex:
+            try:
+                return self.max_quantum_tag(self[self.index(sight) - 1])
+            except Exception:
+                raise ex
+        
+    def center_tag (self, center):
+        """Return the (largest) tag in the train of the desired center."""
+        if isinstance(center, site):
+            return self.max_quantum_tag(center)
+        elif isinstance(center, int):
+            return center
+        else:
+            raise TypeError(f'center={center} needs to be int or site')
+       
+    def view (self):
+        """Print the matrices for viewing purposes."""
+        for e in self:
+            print(e.mat)
+        
+    def size (self):
+        """Return total number of coefficients."""
+        return sum(e.mat.size for e in self)
+    
+    def shapes (self):
+        """Return a list of the shapes of the mps representations."""
+        return [ e.mat.shape for e in self ]
+            
+    def get_sites (self, iterable):
+        """Return the sites corresponding to the quanta tags in iterable."""
+        quanta_map = [
+            [ e.tag for e in sight.get_type(quantum) ] for sight in self
+        ]
+        yielded = []
+        for e in iterable:
+            for i, qset in enumerate(quanta_map):
+                if (e in qset) and (i not in yielded):
+                    yielded.append(i)
+                    yield self[i]
 
-    def split_site (self, site_in, center, trim=None, result=False):
+    def reset_pos (self):
+        """Reset the indices in each site to be in standard form **IN PLACE**."""
+        center_tag = self.center_tag(self.center)
+        for sight in self:
+            sight.reset_pos(center_tag)
+        
+    def trim_bonds (self, chi):
+        """Trim the bond rank of the MPS by constant chi **IN PLACE**."""
+        for i in range(len(self) - 1):
+            self[i].trim_bonds(self[i+1], chi=chi)
+
+    def contract_bond (self, bnd):
+        """Join two sites by contracting a bond index **IN PLACE**."""
+        # Error checking for compatibility with Kronecker product implementation
+        assert isinstance(bnd, bond), \
+            f'received type {type(bnd)} but need index.bond'
+        left_pos, right_pos = sorted( self.index(e) for e in bnd.tag )
+        assert ((right_pos - left_pos) == 1), \
+            'bond should connect adjacent sites.'
+#         print('contracting')
+        self[left_pos].contract(self[right_pos])
+        # If contracting the center, move it
+        if (self.center == self[right_pos]):
+#             print('contract bonds moves the center')
+            self.center = self[left_pos]
+        del self[right_pos]
+
+    def merge_bonds (self, sites=()):
+        """Contract bonds between given sites **IN PLACE** (default: all)."""
+        if not sites:
+            sites = self
+#         print('Merging', sites)
+        chunks = chunk_seq(sorted( self.index(e) for e in sites ))
+        count_contractions = 0
+        for chunk in chunks:
+#             print('CHUNKS', chunks)
+            for i in chunk[:-1]:
+#                 print(i - count_contractions)
+                for bnd in self[i - count_contractions].ind[1].get_type(bond):
+#                     print(bnd)
+                    self.contract_bond(bnd)
+                    count_contractions += 1
+                    break
+          
+    def split_site (self, site_in, center, trim=None):
         """Split a site by introducing a bond index (aka SVD)."""
         pos = self.index(site_in)
         if isinstance(center, site):
@@ -56,85 +143,9 @@ class train (UserList):
         del self[pos]
         for e in reversed(new_sites):
             self.insert(pos, e)
-        if result:
-            return self
-    
-    def contract_bond (self, bnd, result=False):
-        """Join two sites by contracting a bond index **IN PLACE**."""
-        # Error checking for compatibility with Kronecker product implementation
-        assert isinstance(bnd, bond), \
-            f'received type {type(bnd)} but need index.bond'
-        left_pos, right_pos = sorted( self.index(e) for e in bnd.tag )
-        assert (right_pos - left_pos == 1), \
-            'bond should connect adjacent sites.'
-#         print('contracting')
-        self[left_pos].contract(self[right_pos])
-        # If contracting the center, move it
-        if (self.center == self[right_pos]):
-            self.center = self[left_pos]
-        del self[right_pos]
-        if result:
-            return self
-            
-    def max_quantum_tag (self, sight):
-        """Return the tag of the largest quantum at site. If None, look left."""
-        try:
-            return max( e.tag for e in sight.get_type(quantum) )
-        except ValueError as ex:
-            try:
-                return self.max_quantum_tag(self[self.index(sight) - 1])
-            except Exception:
-                raise ex
-        
-    def center_tag (self, center):
-        """Return the (largest) tag in the train of the desired center."""
-        if isinstance(center, site):
-            return self.max_quantum_tag(center)
-        elif isinstance(center, int):
-            return center
-        else:
-            raise TypeError(f'center={center} needs to be int or site')
-        
-    def split_quanta (self, center, sites=(), N=1, trim=None, result=False):
-        """Split the sites in the train by quanta (default: all sites).
-        
-        Arguments:
-        center :: site or int :: the quantum whose tag makes it the
-        orthogonality center, or a site
-        N :: int 
-        """ 
-        if not sites:
-            sites = [e for e in self]
-        if not N:
-            N = 1
-        if isinstance(N, int):
-            P = [ N for _ in range(len(sites)) ]
-        elif hasattr(N, '__len__'):
-            assert (len(N) == len(sites))
-            P = list(N)
-        else:
-            raise TypeError('N must be an integer, list or tuple (nested depth 1)')
-            
-        for i, sight in enumerate(sites):
-            pos = self.index(sight)
-#             print('center tag', self.center_tag(center))
-            new_sites = sight.split_quanta(self.center_tag(center), N=P[i], trim=trim)
-#             print('NEW SITES', *[repr(e) for e in new_sites])
-            del self[pos]
-            for e in reversed(new_sites):
-                self.insert(pos, e)
-                # Move the center if necessary
-                for quant in e.get_type(quantum):
-                    if (center == abs(quant.tag)):
-                        self.center = self[pos]
-                        break
-        if (center in [0, -1]):
-            self.center = self[center]
-        if result:
-            return self
-    
-    def canonize (self, center, result=False):
-        """Cast train into canonical form with orthogonality center **IN PLACE**.
+      
+    def canonize (self, center):
+        """Cast train to canonical form with orthogonality center **IN PLACE**.
 
         Arguments:
         center :: site or int:: if isinstance site, then if that site is 
@@ -179,70 +190,49 @@ class train (UserList):
             center_ind += int((center_tag == -1) or (center_tag > len(self) - 1))
         self[center_ind].reset_pos(center_tag)
         self.center = self[center_ind]
-        if result:
-            return self
 
-    def trim_bonds (self, chi, result=False):
-        """Trim the bond rank of the MPS by constant chi **IN PLACE**."""
-        for i, sight in enumerate(self[:-1]):
-            sight.trim_bonds(self[i+1], chi=chi, result=result)
-        if result:
-            return self
+    def split_quanta (self, center, sites=(), N=1, trim=None):
+        """Split the sites in the train by quanta (default: all sites).
         
-    def merge_bonds (self, sites=(), result=False):
-        """Contract bonds between given sites **IN PLACE** (default: all)."""
+        Arguments:
+        center :: site or int :: the new orthogonality center
+        sites :: list or tuple of sites :: the sites to split
+        N :: int or list of tuples or lists (1 for each site) :: how to split
+        """ 
         if not sites:
-            sites = self
-        chunks = chunk_seq(sorted( self.index(e) for e in sites ))
-        count_contractions = 0
-        for chunk in chunks:
-#             print('CHUNKS', chunks)
-            for i in chunk[:-1]:
-#                 print(i - count_contractions)
-                for bnd in self[i - count_contractions].ind[1].get_type(bond):
-#                     print(bnd)
-                    self.contract_bond(bnd)
-                    count_contractions += 1
-                    break
-        if result:
-            return self
-    
-    def reset_pos (self, result=False):
-        """Reset the indices in each site to match the canonical form **IN PLACE**."""
-        center_tag = self.center_tag(self.center)
-        for sight in self:
-            sight.reset_pos(center_tag)
-        if result:
-            return self
+            sites = [ e for e in self ]
+        if not N:
+            N = 1
+        if isinstance(N, int):
+            P = [ N for _ in range(len(sites)) ]
+        elif hasattr(N, '__len__'):
+            assert (len(N) == len(sites))
+            P = list(N)
+        else:
+            raise TypeError('N must be an integer, list or tuple (nested depth 1)')
+            
+        for i, sight in enumerate(sites):
+            pos = self.index(sight)
+#             print('center tag', self.center_tag(center))
+#             print('pre')
+            # ALWAYS SPLIT THE ORTHOGONALITY CENTER OR RISK BIG ISSUES
+            self.canonize(self[pos])
+#             print('post')
+            new_sites = self[pos].split_quanta(self.center_tag(center), N=P[i], trim=trim)
+#             print('NEW SITES', *[repr(e) for e in new_sites])
+            del self[pos]
+            for e in reversed(new_sites):
+                self.insert(pos, e)
+                # Move the center if necessary
+                for q in e.get_type(quantum):
+                    if (self.center_tag(center) == abs(q.tag)):
+#                         print('ReCENTERING')
+                        self.center = self[pos]
+                        break
+        if (center in [0, -1]):
+            self.center = self[center]
 
-    def view (self):
-        """Return the matrices for viewing purposes."""
-        return np.array(
-            [ e.mat for e in self ],
-            dtype='O'
-        )
-        
-    def size (self):
-        """Return total number of coefficients."""
-        return sum(e.mat.size for e in self)
-    
-    def shapes (self):
-        """Return a list of the shapes of the mps representations."""
-        return [ e.mat.shape for e in self ]
-            
-    def get_sites (self, iterable):
-        """Return the sites corresponding to the quanta tags in iterable."""
-        quanta_map = [
-            [ e.tag for e in sight.get_type(quantum) ] for sight in self
-        ]
-        yielded = []
-        for e in iterable:
-            for i, qset in enumerate(quanta_map):
-                if (e in qset) and (i not in yielded):
-                    yielded.append(i)
-                    yield self[i]
-            
-    def groupby_quanta_tag (self, tag_group, result=False):
+    def groupby_quanta_tag (self, tag_group):
         """Regroup quanta **IN PLACE** so that those in group fuse into a site.
         
         Also makes this new, fused site the orthogonality center.
@@ -272,16 +262,14 @@ class train (UserList):
 #         print('sites', sites)
         if sites:
             self.split_quanta(self.center, sites, N_list)
-        self.merge_bonds(self.get_sites(tag_group))
+#         print('from groupby')
+        self.merge_bonds(list(self.get_sites(tag_group)))
         new_center = list(self.get_sites(tag_group))
         assert (len(new_center) == 1), 'unable to distinguish site.'
-        self.center = new_center[0]
 #         return self
 #         print('PRE CANON', repr(self))
-        self.canonize(self.center)
+        self.canonize(new_center[0])
 #         print('POST CANON', repr(self))
-        if result:
-            return self
     
     def contract_quanta (self, raised, lowered):
         """Contract matching physical indices."""

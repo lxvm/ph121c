@@ -6,7 +6,7 @@ indices.
 A thorough review in section 5 of: https://arxiv.org/abs/1008.3477.
 """
 
-from copy import copy, deepcopy
+from copy import deepcopy
 
 import numpy as np
 
@@ -116,7 +116,7 @@ class mpo (train):
                     result = np.kron(result, self[pos].mat)
         return result
 
-    def groupby_quanta_tag (self, tag_group, result=False):
+    def groupby_quanta_tag (self, tag_group):
         """Regroup quanta **IN PLACE** so that those in group fuse into a site.
         
         Also makes this new, fused site the orthogonality center.
@@ -137,19 +137,20 @@ class mpo (train):
             if not any( i in e for e in quanta_tags ):
                 to_fill.append(i)
         for chunk in chunk_seq(to_fill):
-            self.set_local_oper(np.eye(self.d ** len(chunk)), min(chunk))
-        return super().groupby_quanta_tag(tag_group, result)
+            if chunk:
+                self.set_local_oper(np.eye(self.d ** len(chunk)), min(chunk))
+        return super().groupby_quanta_tag(tag_group)
     
     ## These methods must not modify the mps or mpo instance (except reshape)!
     
     def oper (self, tren, inplace=False):
-        """Apply operator to a tensor.train instance **IN PLACE**.
+        """Apply operator to a tensor.train instance.
         
         The process of applying the operator without breaking the connectivity
         looks an awful lot like DNA replication :) There is a zipper of sites
         which are copied/unzipped and then wound back together again.
         """
-        assert isinstance(tren, mps)
+        assert isinstance(tren, train)
         assert self.L == tren.L
         assert self.d == tren.d
         
@@ -157,70 +158,38 @@ class mpo (train):
         prev_mpo_site = None
         copy_train_site = None
         copy_mpo_site = None
-        output = tren.__class__(L=self.L, d=self.d)
+        if inplace:
+            output = tren
+        else:
+            output = deepcopy(tren)
         
         for i in range(len(self)):
-#             print(i,i,i,i,i,i,i,i)
-            
-            quanta_tags = [
-                e.tag for e in self[i].get_type(quantum) if (e.tag > 0)
-            ]
-            print('tags', [e.tag for e in self[i].get_type(quantum)])
-#             print(repr(tren), repr(tren.center))
-#             print(quanta_tags)
-#             print(repr(tren[i].ind))
-            tren.groupby_quanta_tag(quanta_tags)
-            center_pos = tren.index(tren.center)
-#             print(repr(tren))
+            tags = [ e.tag for e in self[i].get_type(quantum) if (e.tag > 0) ]
+            output.groupby_quanta_tag(tags)
+            center_pos = output.index(output.center)
             # Here is where we apply the operator to the new center
             # we hijack the matching physical indices with bonds
             # we also do this on a copy of each to not cause side-effects
-#             print('before', repr(self[i].ind))
             oper = self[i].copy(prev_mpo_site, copy_mpo_site)
-#             print(repr(oper))
-            if inplace:
-                oper.link_quanta(tren.center)
-#                 print(repr(oper.ind[1]))
-#                 print('contracting')
-                oper.contract(tren.center)
-#                 print(repr(oper.ind[1]))
-#                 print(repr(oper))
-                try: tren.center.relink_bonds(tren[center_pos - 1], 0)
-                except IndexError: pass
-                try: tren.center.relink_bonds(tren[center_pos + 1], 1)
-                except IndexError: pass
-                tren[center_pos] = oper
-                tren.center = oper
-            else:
-                pass
-#                 wave = tren.center.copy(prev_train_site, copy_train_site)
-#                 oper.link_quanta(wave)
-#                 oper.contract(wave)
-#                 print(repr(wave))
-#                 output.append(tren.center)
-#                 prev_train_site = tren.center
-#                 copy_train_site = wave
-#                 output.insert(i, oper)
-#                 output.center = oper
+            oper.link_quanta(output.center)
+            oper.contract(output.center)
+            try: output.center.relink_bonds(output[center_pos - 1], 0)
+            except IndexError: pass
+            try: output.center.relink_bonds(output[center_pos + 1], 1)
+            except IndexError: pass
+            output[center_pos] = oper
+            output.center = oper
             prev_mpo_site = self[i]
             copy_mpo_site = oper
-#             print(repr(tren))
-#             print('after', repr(self[i].ind))
         if not inplace:
             return output
 
-    def combine (self, other):
-        """Combine two compatible mpo's into one operator."""
-        assert isinstance(other, self.__class__)
-        assert self.L == other.L
-        assert self.d == other.d
-        return NotImplemented
-    
-    def mel (self, train_a, train_b):
+    def mel (self, tren_a, tren_b):
         """Calculate the matrix element <b|O|a> of this operator."""
-        self.oper(train_a, inplace=False)
-        return train_a.inner(train_b)
+        output = self.oper(tren_a).inner(tren_b)
+        return np.trace(output.mat.conj().T @ output.mat)
     
     def expval (self, tren):
         """Calculate the expectation value <a|O|a> of an operator."""
-        return self.mel(tren, tren)
+        # TODO: Be smart about calculating these with canonical forms
+        return self.mel(tren, deepcopy(tren))

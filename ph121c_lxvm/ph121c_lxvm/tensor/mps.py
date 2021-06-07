@@ -7,6 +7,8 @@ should amount to adding an extra 'bond' between the ends that
 A thorough review in section 4 of: https://arxiv.org/abs/1008.3477.
 """
 
+from copy import deepcopy
+
 from .utils   import *
 from .indices import *
 from .site    import *
@@ -158,25 +160,41 @@ class mps (train):
         
     ## These methods must not change the state of the MPS !
         
-    def inner (self, B):
-        """Take the inner product with another mps wavefunction."""
-        assert isinstance(B, mps)
-        assert self.L == B.L
-        assert self.d == B.d
-        return NotImplemented
-#         val = self.A[0].copy()
+    def inner (self, other):
+        """Take the inner product with another mps wavefunction <self|other>."""
+        assert isinstance(other, mps)
+        assert self.L == other.L
+        assert self.d == other.d
+        output = deepcopy(self)
+        prev_self_site = None
+        prev_output_site = None
+        copy_self_site = None
+        copy_output_site = None
         
-#         for i in range(self.L - 1):
-#             # collapse the physical index
-#             val = B.A[i].conj().T @ val
-#             # collapse the A_i index
-#             val = np.kron(np.eye(self.d), val) @ self.A[i + 1]
-#         val = B.A[self.L - 1].conj().T @ val
-#         if isinstance(val, np.ndarray):
-#             assert val.size == 1
-#             return val[0, 0]
-#         elif isinstance(val, (float, complex)):
-#             return val
+        for i in range(len(self)):
+            tags = [ e.tag for e in self[i].get_type(quantum) if (e.tag > 0) ]
+            other.groupby_quanta_tag(tags)
+        output.canonize(-1)
+        assert (output.center == output[-1])
+        assert (len(self) == len(output)), 'grouping did not succeed'
+        # Tensor contraction
+        wave = other[0].copy()
+        for i in range(len(self) - 1):
+            output[0].conj()
+            output[0].transpose()
+            # Contract the physical index
+            output[0].link_quanta(wave)
+            output[0].contract(wave)
+            # Contract the virtual index
+            wave = other[i+1].copy(other[i], output[0])
+            wave.relink_bonds(output[0], 0)
+            output[0].contract(wave)
+            wave = output.pop(0)
+        output[0].conj()
+        output[0].transpose()
+        output[0].link_quanta(wave)
+        output[0].contract(wave)
+        return output[0]
 
     def norm (self):
         """Return the norm of the MPS wavefunction."""
@@ -193,24 +211,3 @@ class mps (train):
     def normalize (self):
         """Normalize the MPS **IN PLACE**."""
         self.center.mat = self.center.mat / self.norm()
-
-    ## Not Implemented
-        
-    def get_component (self, phys_ind):
-        """Calculate a single component of the physical index.
-        
-        Index is an ndarray of length L with the physical indices in big-endian
-        order and with integer entries ranging from 0 to d - 1.
-        Read about the algorithm here: https://tensornetwork.org/mps/#toc_4.
-        """
-        return NotImplemented
-#         assert np.all(0 <= index) and np.all(index < self.d)
-#         coef  = np.ones(1).reshape(1, 1)
-        
-#         for j, e in enumerate(index):
-#             coef = coef @ self.A[j][e * self.r(j) + np.arange(self.r(j))]
-#         return coef
-        
-    def __add__ (self):
-        """Read section 4.3 of https://arxiv.org/abs/1008.3477."""
-        return NotImplemented

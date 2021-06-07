@@ -33,19 +33,17 @@ class index (UserList):
     def __str__ (self):
         return ''.join([
             type(self).__name__,
-            '(at ', hex(id(self)),
-            ', dim=', str(self.dim),
+            '(dim=', str(self.dim),
             ', tag=', rstr(self.tag),
-            ')'
+            ') # at ', hex(id(self)),
         ])
     
     def __repr__ (self, level=2):
         return ''.join([
-            indent('\n' + type(self).__name__ + '(at ' + hex(id(self)), level),
-            indent('\ndata=' + super().__repr__(), 2*level), ',',
-            indent('\ndim=' + repr(self.dim), 2*level), ',',
-            indent('\ntag=' + rstr(self.tag), 2*level), ',',
-            indent('\n)', level), 
+            type(self).__name__ + '( # at ' + hex(id(self)),
+            indent('\ndata=' + repr(self.data), level),
+            indent(',\ntag=' + str(self.tag), level),
+            '\n)' 
         ])
     
     def update (self):
@@ -124,10 +122,14 @@ class multi_index (index):
         assert isinstance(other, self.__class__)
         return super().__add__(other)
         self.update()
-    
+            
     def __str__ (self):
         return ''.join([
-            super().__str__()[:-1], ', shape=', str(self.shape()), ')'
+            type(self).__name__,
+            '(dim=', str(self.dim),
+            ', tag=', rstr(self.tag),
+            ', shape=', str(self.shape()), 
+            ') # at ', hex(id(self)),
         ])
         
     def shape (self):
