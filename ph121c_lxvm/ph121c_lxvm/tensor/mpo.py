@@ -187,9 +187,34 @@ class mpo (train):
     def mel (self, tren_a, tren_b):
         """Calculate the matrix element <b|O|a> of this operator."""
         output = self.oper(tren_a).inner(tren_b)
-        return np.trace(output.mat.conj().T @ output.mat)
+        return np.trace(output[0].mat)
     
     def expval (self, tren):
         """Calculate the expectation value <a|O|a> of an operator."""
-        # TODO: Be smart about calculating these with canonical forms
-        return self.mel(tren, deepcopy(tren))
+        tags = [ e.tag for s in self for e in s.get_type(quantum) if (e.tag > 0) ]
+        if (len(tags) <= 2) and is_consecutive(tags):
+            if (len(self) == 1):
+                oper = self[0].copy()
+            elif (len(self) == 2):
+                oper = self[0].copy()
+                oper.contract(self[1].copy(self[0], oper))
+            else:
+                raise IndexError('hard coded sizes do not implement this')
+            tren.groupby_quanta_tag(tags)
+            output = train([tren.center.copy(), oper])
+            output[0].transpose()
+            output[0].conj()
+            output[0].link_quanta(output[1])
+            output.contract_bond(next(
+                e for e in output[0].ind[1].get_type(bond) if output[1] in e.tag
+            ))
+            pos = tren.index(tren.center)
+            output.append(tren.center.copy(tren[pos - 1 + 2 * (pos == 0)], output[0]))
+            output[0].link_quanta(output[1])
+            output[1].relink_bonds(output[0], 0)
+            output.contract_bond(next(
+                e for e in output[0].ind[1].get_type(bond) if output[1] in e.tag
+            ))
+            return np.trace(output[0].mat)
+        else:
+            return self.mel(tren, deepcopy(tren))

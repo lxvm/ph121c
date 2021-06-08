@@ -200,35 +200,35 @@ class train (UserList):
         N :: int or list of tuples or lists (1 for each site) :: how to split
         """ 
         if not sites:
-            sites = [ e for e in self ]
+            sites_pos = [ i for i in range(len(self)) ]
+        else:
+            sites_pos = [ self.index(e) for e in sites ]
         if not N:
             N = 1
         if isinstance(N, int):
-            P = [ N for _ in range(len(sites)) ]
+            P = [ N for _ in range(len(sites_pos)) ]
         elif hasattr(N, '__len__'):
-            assert (len(N) == len(sites))
+            assert (len(N) == len(sites_pos))
             P = list(N)
         else:
             raise TypeError('N must be an integer, list or tuple (nested depth 1)')
             
-        for i, sight in enumerate(sites):
-            pos = self.index(sight)
-#             print('center tag', self.center_tag(center))
-#             print('pre')
+        # Since sites are created and destroyed in the loop, refer/update indices instead
+        for i, pos in enumerate(sites_pos):
             # ALWAYS SPLIT THE ORTHOGONALITY CENTER OR RISK BIG ISSUES
             self.canonize(self[pos])
-#             print('post')
             new_sites = self[pos].split_quanta(self.center_tag(center), N=P[i], trim=trim)
-#             print('NEW SITES', *[repr(e) for e in new_sites])
             del self[pos]
             for e in reversed(new_sites):
                 self.insert(pos, e)
                 # Move the center if necessary
                 for q in e.get_type(quantum):
                     if (self.center_tag(center) == abs(q.tag)):
-#                         print('ReCENTERING')
                         self.center = self[pos]
                         break
+            # update subsequent positions
+            Nnew = len(new_sites) - 1
+            sites_pos[i+1:] = [ e + Nnew for e in sites_pos[i+1:] if (e > pos) ]
         if (center in [0, -1]):
             self.center = self[center]
 
@@ -258,18 +258,12 @@ class train (UserList):
                     N_list.append([ len(e) for e in sorted([incommon, *chunks]) ])
                 else:
                     raise ValueError('tag_group does not bisect quanta_tags')
-#         print('Nlist', N_list)
-#         print('sites', sites)
         if sites:
             self.split_quanta(self.center, sites, N_list)
-#         print('from groupby')
         self.merge_bonds(list(self.get_sites(tag_group)))
         new_center = list(self.get_sites(tag_group))
         assert (len(new_center) == 1), 'unable to distinguish site.'
-#         return self
-#         print('PRE CANON', repr(self))
         self.canonize(new_center[0])
-#         print('POST CANON', repr(self))
     
     def contract_quanta (self, raised, lowered):
         """Contract matching physical indices."""

@@ -278,21 +278,27 @@ class site:
         assert (len(bonds) == 1), \
             f'Trying to trim {len(bonds)} bonds: if > 1, SVD instead.'
         bnd = bonds[0]
-        for sight in [self, other]:
+#         self.relink_bonds(other, 0)
+        self.relink_bonds(other, 1)
+#         other.relink_bonds(self, 0)
+        for i, sight in enumerate([self, other]):
             # Find the axis where the bond is
             for axis in (0, 1):
-                if bnd in sight.ind[axis]:
+                if any( bnd == e for e in sight.ind[axis].get_type(bond) ):
                     aspect_a, aspect_b, trimmings = site_trims[axis]
+                    print('ax', axis)
                     break
             # Bond should be the last entry in the axis
             N = len(sight.ind[axis][:-1])
+#             print(repr(sight.ind))
             sight.reshape(aspect_a, 'fl', N=N)
             # Bond is distinguished, now trim it
             sight.mat = eval(trimmings)
             sight.reshape(aspect_b, 'lf', N=N)
         # Trim bond as well
-        while (len(bnd) > chi):
-            del bnd[-1]
+        if chi:
+            while (len(bnd) > int(chi)):
+                del bnd[-1]
 
     def groupby_quanta_tag (self, groupby=('e.tag < 0', 'e.tag > 0')):
         """Group physical indices with a filter **IN PLACE**.
