@@ -76,11 +76,6 @@ class train (UserList):
         center_tag = self.center_tag(self.center)
         for sight in self:
             sight.reset_pos(center_tag)
-        
-    def trim_bonds (self, chi):
-        """Trim the bond rank of the MPS by constant chi **IN PLACE**."""
-        for i in range(len(self) - 1):
-            self[i].trim_bonds(self[i+1], chi=chi)
 
     def contract_bond (self, bnd):
         """Join two sites by contracting a bond index **IN PLACE**."""
@@ -90,11 +85,9 @@ class train (UserList):
         left_pos, right_pos = sorted( self.index(e) for e in bnd.tag )
         assert ((right_pos - left_pos) == 1), \
             'bond should connect adjacent sites.'
-#         print('contracting')
         self[left_pos].contract(self[right_pos])
         # If contracting the center, move it
         if (self.center == self[right_pos]):
-#             print('contract bonds moves the center')
             self.center = self[left_pos]
         del self[right_pos]
 
@@ -102,15 +95,11 @@ class train (UserList):
         """Contract bonds between given sites **IN PLACE** (default: all)."""
         if not sites:
             sites = self
-#         print('Merging', sites)
         chunks = chunk_seq(sorted( self.index(e) for e in sites ))
         count_contractions = 0
         for chunk in chunks:
-#             print('CHUNKS', chunks)
             for i in chunk[:-1]:
-#                 print(i - count_contractions)
                 for bnd in self[i - count_contractions].ind[1].get_type(bond):
-#                     print(bnd)
                     self.contract_bond(bnd)
                     count_contractions += 1
                     break
@@ -148,7 +137,7 @@ class train (UserList):
         """Cast train to canonical form with orthogonality center **IN PLACE**.
 
         Arguments:
-        center :: site or int:: if isinstance site, then if that site is 
+        center :: site or int :: if isinstance site, then if that site is 
         contained in the train, it becomes new orthogonality center.
         If isinstance int, the site with that physical index becomes the center.
         Note: center=0 is right-canonical, and center=-1 is left-canonical.
@@ -186,10 +175,20 @@ class train (UserList):
             i += 1
         # Because max of i is len(self) - 2, may need to add the last element
         if (len(self) > 1) and (side == 'left'):
-#             print('incrementing center tag', center_tag, i, center_ind)
             center_ind += int((center_tag == -1) or (center_tag > len(self) - 1))
         self[center_ind].reset_pos(center_tag)
         self.center = self[center_ind]
+
+    def trim_bonds (self, chi):
+        """Trim the bond rank of the MPS by constant chi **IN PLACE**."""
+        ### ONLY TRIM THE ORTHOGONALITY CENTER OR FACE THE WRATH OF GOD
+        self.canonize(center=-1)
+        for i in range(len(self) - 1, 0, -1):
+            self.center.reset_pos(self.center_tag(self[i-1]))
+            self.split_site(self[i], self[i - 1])
+            self[i + 1].trim_bonds(self[i], chi=chi)
+            bnd = next(self[i].ind[0].get_type(bond))
+            self.contract_bond(bnd)
 
     def split_quanta (self, center, sites=(), N=1, trim=None):
         """Split the sites in the train by quanta (default: all sites).

@@ -286,7 +286,7 @@ class site:
             for axis in (0, 1):
                 if any( bnd == e for e in sight.ind[axis].get_type(bond) ):
                     aspect_a, aspect_b, trimmings = site_trims[axis]
-                    print('ax', axis)
+#                     print('ax', axis)
                     break
             # Bond should be the last entry in the axis
             N = len(sight.ind[axis][:-1])
