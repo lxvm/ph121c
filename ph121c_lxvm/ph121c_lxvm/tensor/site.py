@@ -47,8 +47,8 @@ class quantum (index):
         iterable :: iterable :: length gives the dimension of the Hilbert space.
         tag :: int :: this is a label of the state. Start numbering a 1
         """
-        assert isinstance(tag, int) and (tag != 0), \
-            'Physical index must be tagged by nonzero int.'
+        assert isinstance(tag, (int, np.int64)) and (tag != 0), \
+            f'Physical index must be tagged by nonzero int.'
         super().__init__(iterable, tag)
         
     

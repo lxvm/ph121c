@@ -9,7 +9,7 @@ def tfim_sweep (
     **kwargs
 ):
     """Generate named TFIM parameter values to sweep over."""
-    yield from sweep(L=L, h=h, bc=bc, **keys)
+    yield from sweep(L=L, h=h, bc=bc, **kwargs)
     
 def sweep (**kwargs):
     """Generate named parameter values to sweep over."""

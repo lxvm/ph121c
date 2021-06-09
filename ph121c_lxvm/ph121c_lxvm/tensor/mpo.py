@@ -37,7 +37,7 @@ class mpo (train):
         oper :: np.ndarray :: Square matrix of shape (d**k, d**k) for some k<=L
         left_index :: int>0 ::  oper acts on indices left_index + (0, ..., k-1)
         """
-        assert (0 < left_index <= self.L)
+        assert (0 < left_index <= self.L), f'0, {left_index}, {self.L}'
         assert (oper.shape[0] == oper.shape[1])
         # Get the site and index indices to determine where to insert operator
         quanta_tags = []
@@ -83,6 +83,10 @@ class mpo (train):
             )),
         ))
     
+    def __setitem__ (self, i, item):
+        """Set a local operator at a site. Shorthand for `set_local_oper`."""
+        self.set_local_oper(item, i)
+        
     def to_arr (self):
         """Return operator as its dense representation in computational basis."""
         self.merge_bonds()
@@ -187,7 +191,7 @@ class mpo (train):
     def mel (self, tren_a, tren_b):
         """Calculate the matrix element <b|O|a> of this operator."""
         output = self.oper(tren_a).inner(tren_b)
-        return np.trace(output[0].mat)
+        return np.trace(output.mat)
     
     def expval (self, tren):
         """Calculate the expectation value <a|O|a> of an operator."""
