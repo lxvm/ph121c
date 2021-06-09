@@ -10,8 +10,8 @@ dependencies:
   - arrow-cpp=2.0.0=py37he341ae1_3
   - asn1crypto=1.4.0=py37_2
   - async_generator=1.10=py37h28b3542_0
-  - attrs=20.3.0=pyhd3eb1b0_0
-  - babel=2.9.0=pyhd3eb1b0_0
+  - attrs=21.2.0=pyhd3eb1b0_0
+  - babel=2.9.1=pyhd3eb1b0_0
   - backcall=0.2.0=pyhd3eb1b0_0
   - bleach=3.3.0=pyhd3eb1b0_0
   - brotli=1.0.9=hf484d3e_1
@@ -30,7 +30,7 @@ dependencies:
   - cython=0.29.21=py37h288f0c4_4
   - daal4py=2021.2.0=py37_intel_321
   - dal=2021.2.0=intel_358
-  - decorator=5.0.6=pyhd3eb1b0_0
+  - decorator=5.0.9=pyhd3eb1b0_0
   - defusedxml=0.7.1=pyhd3eb1b0_0
   - double-conversion=3.1.5=hf484d3e_0
   - dpcpp_cpp_rt=2021.2.0=intel_610
@@ -57,7 +57,7 @@ dependencies:
   - ipython=7.22.0=py37hb070fc8_0
   - ipython_genutils=0.2.0=pyhd3eb1b0_1
   - jedi=0.17.0=py37_0
-  - jinja2=2.11.3=pyhd3eb1b0_0
+  - jinja2=3.0.0=pyhd3eb1b0_0
   - joblib=1.0.1=py37_0
   - jpeg=9d=h36c2ea0_0
   - json5=0.9.5=py_0
@@ -75,13 +75,14 @@ dependencies:
   - libevent=2.1.10=h14c3975_0
   - libffi=3.3=13
   - libgcc-ng=9.3.0=hdf63c60_101
-  - libgfortran-ng=7.3.0=hdf63c60_0
+  - libgfortran-ng=7.5.0=ha8ba4b0_17
+  - libgfortran4=7.5.0=ha8ba4b0_17
   - libllvm10=10.0.0=h5abf007_8
   - libopenssl-static=1.1.1j=h14c3975_1
   - libpng=1.6.37=7
   - libprotobuf=3.14.0=hdfd0036_0
   - libprotobuf-static=3.14.0=he460374_0
-  - libsodium=1.0.18=h7b6447c_0
+  - libsodium=1.0.16=3
   - libstdcxx-ng=9.3.0=hdf63c60_101
   - libthrift=0.13.0=ha72d5fa_6
   - libtiff=4.2.0=h3942068_0
@@ -94,7 +95,7 @@ dependencies:
   - llvmlite=0.35.0=py37he70efef_0
   - lz4-c=1.9.2=h5c78bee_3
   - lzo=2.10=hb9a14ef_6
-  - markupsafe=1.1.1=py37h14c3975_1
+  - markupsafe=2.0.1=py37h27cfd23_0
   - matplotlib=3.1.2=py37h58906d0_6
   - mistune=0.8.4=py37h14c3975_1001
   - mkl=2021.2.0=intel_296
@@ -109,7 +110,7 @@ dependencies:
   - nbconvert=6.0.7=py37_0
   - nbformat=5.1.3=pyhd3eb1b0_0
   - nest-asyncio=1.5.1=pyhd3eb1b0_0
-  - notebook=6.3.0=py37h06a4308_0
+  - notebook=6.4.0=py37h06a4308_0
   - numba=0.52.0=py37h4a21a7f_1
   - numba-dppy=0.13.1=py37h12eb563_0
   - numexpr=2.7.2=py37hfeeda64_1
@@ -128,14 +129,14 @@ dependencies:
   - pickleshare=0.7.5=pyhd3eb1b0_1003
   - pillow=8.1.2=py37he98fc37_0
   - pip=21.0.1=py37_0
-  - prometheus_client=0.10.1=pyhd3eb1b0_0
+  - prometheus_client=0.11.0=pyhd3eb1b0_0
   - prompt-toolkit=3.0.17=pyh06a4308_0
   - ptyprocess=0.7.0=pyhd3eb1b0_2
   - pyarrow=2.0.0=py37h0db00c3_2
   - pycosat=0.6.3=py37_6
   - pycparser=2.20=py37_2
   - pyeditline=2.0.1=py37_1
-  - pygments=2.8.1=pyhd3eb1b0_0
+  - pygments=2.9.0=pyhd3eb1b0_0
   - pyopenssl=20.0.1=py37_2
   - pyparsing=2.4.7=py37_2
   - pyrsistent=0.17.3=py37h7b6447c_0
@@ -145,7 +146,7 @@ dependencies:
   - python-libarchive-c=2.8=py37_14
   - pytz=2021.1=py37_0
   - pyyaml=5.3.1=py37h725dc98_1
-  - pyzmq=20.0.0=py37h2531618_1
+  - pyzmq=18.1.1=py37he6710b0_0
   - re2=2020.11.01=hf484d3e_0
   - requests=2.25.1=py37_1
   - ruamel_yaml=0.15.99=py37h725dc98_6
@@ -184,7 +185,7 @@ dependencies:
   - xgboost=1.3.3=1421_g3b6aa5py37_3
   - xz=5.2.5=h85f8e93_2
   - yaml=0.1.7=7
-  - zeromq=4.3.4=h2531618_0
+  - zeromq=4.3.1=he6710b0_3
   - zipp=3.4.1=pyhd3eb1b0_0
   - zlib=1.2.11.1=h047b5d8_3
   - zstd=1.4.5=ha6fa1a4_0
