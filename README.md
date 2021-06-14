@@ -48,6 +48,17 @@ and h5py, and so you could just install my package into a virtual
 environment with those and install any additional packages that are needed.
 Since I am using `conda` only for Intel Python, you would probably be better
 off by installing this into a Python `venv` which is less complicated.
+Here's how to do it:
+
+```
+$ pwd
+<path/to/ph121c/>
+$ python3 -m venv pyenv
+$ . pyenv/bin/activate
+$ python3 -m pip install numpy
+$ cd ph121c_lxvm
+$ python3 setup.py build # or 'develop'
+```
 
 ### Package
 

@@ -2,3 +2,4 @@
 playground/
 ## jupyter
 .ipynb_checkpoints
+pyenv/
