@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Assignment 4 on Lorenzo X. Van Muñoz</title>
+    <link>https://lxvm.github.io/ph121c/asg4/</link>
+    <description>Recent content in Assignment 4 on Lorenzo X. Van Muñoz</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>en</language>
+    <lastBuildDate>Wed, 19 May 2021 10:09:01 -0700</lastBuildDate><atom:link href="https://lxvm.github.io/ph121c/asg4/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Assignment 4: Part 3</title>
+      <link>https://lxvm.github.io/ph121c/asg4/tebd/</link>
+      <pubDate>Wed, 19 May 2021 10:12:57 -0700</pubDate>
+      
+      <guid>https://lxvm.github.io/ph121c/asg4/tebd/</guid>
+      <description>Quench dynamics in the MBL phase $\require{physics}$
+from copy import deepcopy import numpy as np import pandas as pd from scipy.linalg import expm import matplotlib.pyplot as plt %matplotlib inline from ph121c_lxvm import tensor, measure Summary We will again evolve this quantum state \begin{align} \ket{\psi(t=0)} = \ket{\xi} \otimes \cdots \otimes \ket{\xi} , \end{align} where $\ket{\xi} = \frac{1}{2} \left( \ket{\uparrow} - \sqrt{3} \ket{\downarrow} \right)$.
+# Build initial state down = np.array([1., 0.]).reshape(2, 1) up = down[::-1].</description>
+    </item>
+    
+    <item>
+      <title>Assignment 4: Part 1</title>
+      <link>https://lxvm.github.io/ph121c/asg4/imag/</link>
+      <pubDate>Wed, 19 May 2021 10:12:54 -0700</pubDate>
+      
+      <guid>https://lxvm.github.io/ph121c/asg4/imag/</guid>
+      <description>Imaginary time evolution $ \require{physics} \def\bm{\boldsymbol} $
+from copy import deepcopy import numpy as np import pandas as pd from scipy.linalg import expm from scipy.sparse.linalg import eigsh import matplotlib.pyplot as plt %matplotlib inline from ph121c_lxvm import tensor, basis, models What we are doing In this assignment there will be simulations of the dynamics of quantum systems with local Hamiltonians in the matrix product state (MPS) representation. This will be via the Time Evolving Block Decimation (TEBD) algorithm.</description>
+    </item>
+    
+    <item>
+      <title>Assignment 4: Part 2</title>
+      <link>https://lxvm.github.io/ph121c/asg4/real/</link>
+      <pubDate>Wed, 19 May 2021 10:12:49 -0700</pubDate>
+      
+      <guid>https://lxvm.github.io/ph121c/asg4/real/</guid>
+      <description>Real Time Evolution $\require{physics}$
+from copy import deepcopy import numpy as np import pandas as pd from scipy.linalg import expm import matplotlib.pyplot as plt %matplotlib inline from ph121c_lxvm import tensor, measure Summary In this notebook, we will evolve a quantum state \begin{align} \ket{\psi(t=0)} = \ket{\xi} \otimes \cdots \otimes \ket{\xi} , \end{align} where $\ket{\xi} = \frac{1}{2} \left( \ket{\uparrow} - \sqrt{3} \ket{\downarrow} \right)$. We will also evolve a second product state to compare against: \begin{align} \ket{\psi (t=0)} &amp;amp;= \ket{\uparrow} \otimes \ket{\downarrow} \otimes \cdots .</description>
+    </item>
+    
+  </channel>
+</rss>

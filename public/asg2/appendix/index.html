@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en"><meta charset="utf-8" />
+
+  <title>Assignment 2 - Lorenzo X. Van Muñoz</title>
+
+
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="stylesheet" href="https://lxvm.github.io/ph121c/css/latex.css" />
+<link rel="stylesheet" href="https://lxvm.github.io/ph121c/css/main.css" />
+<script>
+  MathJax = {
+    tex: {
+      inlineMath: [['$', '$'], ["\\(", "\\)"]]
+    }
+  };
+</script>
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<meta name="generator" content="Hugo 0.80.0" /><body>
+
+
+<header>
+  <div class="intro-header">
+    <div class="container">
+      <div class="asg2-heading">
+        
+          <h1>Assignment 2</h1>
+        
+      </div>
+    </div>
+  </div>
+</header>
+
+        <div id="content">
+  <div class="container" role="main">
+    <article class="article" class="blog-post">
+      <div class="postmeta">
+        <span class="meta-post">
+  
+</span>
+
+      </div>
+      <br>
+      <h1 id="appendix">Appendix</h1>
+<p>This notebook contains information only tangentially relevant to parts of the
+assignment, but may be useful anyways.</p>
+<h2 id="runtimes">Runtimes</h2>
+<h3 id="tfim-simulations">TFIM simulations</h3>
+<p>I was able to run simulations of up to size $L=20$ before my sparse matrix
+builder collapsed the kernel while converting lists of matrix elements in COO
+format to the CSR representation.
+As Brenden suggested, it would faster and less problematic to do this in Fortran
+and save the sparse matrix in an intermediate step as a HDF5 dataset before
+loading it into numpy, but then if all we cared about was performance we would
+just write everything in Fortran.</p>
+<p>Here are some summary statistics of the runtimes at various systems sizes,
+averaged over the different boundary conditions and values of the parameter $h$.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">import</span> numpy <span style="color:#f92672">as</span> np
+<span style="color:#f92672">from</span> scipy.stats <span style="color:#f92672">import</span> linregress
+<span style="color:#f92672">import</span> matplotlib.pyplot <span style="color:#f92672">as</span> plt
+<span style="color:#f92672">%</span>matplotlib inline
+
+<span style="color:#f92672">from</span> ph121c_lxvm <span style="color:#f92672">import</span> tfim, data
+</code></pre></div><div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">d <span style="color:#f92672">=</span> data<span style="color:#f92672">.</span>hdf5<span style="color:#f92672">.</span>inquire(data<span style="color:#f92672">.</span>jobs<span style="color:#f92672">.</span>ARCHIVE)
+</code></pre></div><h4 id="metadata">Metadata</h4>
+<p>This is what some of the HDF5 metadata for a job looks like:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">d[next(iter(d))]
+</code></pre></div><pre><code>{'0': {},
+ '1': {},
+ 'L': 20,
+ 'bc': 'o',
+ 'h': 1.5,
+ 'k': 6,
+ 'oper': 'ph121c_lxvm.tfim.z.H_sparse',
+ 'opertime': 31.07276510001975,
+ 'solver': 'scipy.sparse.linalg.eigen.arpack.arpack.eigsh',
+ 'solvertime': 19.96402716098237,
+ 'walltime': 51.03679226100212,
+ 'which': 'BE'}
+</code></pre>
+<p>Here the attributes &lsquo;0&rsquo; and &lsquo;1&rsquo; refer to datasets within this job.
+In this case, &lsquo;0&rsquo; contains eigenvalues and &lsquo;1&rsquo; contains eigenvectors:
+these are just the indices of the tuple returned by the solver.
+We also know the system size, the solvers used in this job, and the time
+taken for each part of the solver to complete its task.
+The names of the jobs themselves are meaningless to people and are just
+unique hashes of the job metadata.</p>
+<h4 id="complexity">Complexity</h4>
+<p>In the following program, we take the metadata and plot the growth of the
+runtime average at a given system size, averaging over all other parameter
+values: open and closed boundary conditions and
+$h \in {0.3, 0.5, 0.7, 0.8, 0.85, 0.9, 0.95, 1, 1.05, 1.1, 1.15, 1.2, 1.3, 1.5, 1.7}$.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#75715e"># wrangle data from attributes</span>
+dset <span style="color:#f92672">=</span> dict()
+<span style="color:#66d9ef">for</span> k, v <span style="color:#f92672">in</span> d<span style="color:#f92672">.</span>items():
+    <span style="color:#66d9ef">if</span> str(v[<span style="color:#e6db74">&#39;L&#39;</span>]) <span style="color:#f92672">not</span> <span style="color:#f92672">in</span> dset:
+        dset[str(v[<span style="color:#e6db74">&#39;L&#39;</span>])] <span style="color:#f92672">=</span> {
+            <span style="color:#e6db74">&#39;solvertime&#39;</span> : [],
+            <span style="color:#e6db74">&#39;opertime&#39;</span> : [],
+        }
+    dset[str(v[<span style="color:#e6db74">&#39;L&#39;</span>])][<span style="color:#e6db74">&#39;opertime&#39;</span>]<span style="color:#f92672">.</span>append(v[<span style="color:#e6db74">&#39;opertime&#39;</span>])
+    dset[str(v[<span style="color:#e6db74">&#39;L&#39;</span>])][<span style="color:#e6db74">&#39;solvertime&#39;</span>]<span style="color:#f92672">.</span>append(v[<span style="color:#e6db74">&#39;solvertime&#39;</span>])                         
+</code></pre></div><div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#75715e"># Collect averages for plotting</span>
+sizes <span style="color:#f92672">=</span> []
+solvertimes <span style="color:#f92672">=</span> []
+opertimes <span style="color:#f92672">=</span> []
+<span style="color:#66d9ef">for</span> L <span style="color:#f92672">in</span> dset:
+    sizes<span style="color:#f92672">.</span>append(int(L))
+    opertimes<span style="color:#f92672">.</span>append(np<span style="color:#f92672">.</span>mean(dset[L][<span style="color:#e6db74">&#39;opertime&#39;</span>]))
+    solvertimes<span style="color:#f92672">.</span>append(np<span style="color:#f92672">.</span>mean(dset[L][<span style="color:#e6db74">&#39;solvertime&#39;</span>]))
+</code></pre></div><div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#75715e"># Sort results by L</span>
+<span style="color:#66d9ef">for</span> i, e <span style="color:#f92672">in</span> enumerate(sorted(
+    zip(sizes, solvertimes, opertimes)
+)):
+    sizes[i], solvertimes[i], opertimes[i] <span style="color:#f92672">=</span> e
+</code></pre></div><div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">%%</span>capture plot
+fig, ax <span style="color:#f92672">=</span> plt<span style="color:#f92672">.</span>subplots()
+
+ax<span style="color:#f92672">.</span>set_title(<span style="color:#e6db74">&#39;Scaling of runtime&#39;</span>)
+ax<span style="color:#f92672">.</span>set_xlabel(<span style="color:#e6db74">&#39;dim($H_L$)&#39;</span>)
+ax<span style="color:#f92672">.</span>set_ylabel(<span style="color:#e6db74">&#39;Time (s)&#39;</span>)
+
+ax<span style="color:#f92672">.</span>loglog([ <span style="color:#ae81ff">2</span> <span style="color:#f92672">**</span> e <span style="color:#66d9ef">for</span> e <span style="color:#f92672">in</span> sizes ], solvertimes, label<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;solver times&#39;</span>)
+ax<span style="color:#f92672">.</span>loglog([ <span style="color:#ae81ff">2</span> <span style="color:#f92672">**</span> e <span style="color:#66d9ef">for</span> e <span style="color:#f92672">in</span> sizes ], opertimes, label<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;operator times&#39;</span>)
+ax<span style="color:#f92672">.</span>legend()
+
+plt<span style="color:#f92672">.</span>show()
+</code></pre></div><h4 id="results">Results</h4>
+<p>The actual runtimes plotted on logarithmic axes are:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">plot<span style="color:#f92672">.</span>show()
+</code></pre></div><p><img src="output_11_0.png" alt="png"></p>
+<p>Even on logarithmic axis, the runtimes of the eigenvalue solver
+<code>scipy.sparse.linalg.eigsh</code>, have positive curvature.
+This means that the complexity may exceed $\mathcal O (2^{L^\gamma})$ for any
+constant $\gamma$.
+By comparison, the runtimes of the operator, the function that constructs the
+sparse matrix, are essentially linear in log-log space, suggesting that the
+complexity of the algorithm is algebraic.
+Let&rsquo;s estimate the slope:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">m, b, r, p, err <span style="color:#f92672">=</span> linregress(
+    np<span style="color:#f92672">.</span>log10([ <span style="color:#ae81ff">2</span> <span style="color:#f92672">**</span> e <span style="color:#66d9ef">for</span> e <span style="color:#f92672">in</span> sizes ]),
+    np<span style="color:#f92672">.</span>log10(opertimes),
+)
+<span style="color:#66d9ef">print</span>(<span style="color:#e6db74">&#39;slope: &#39;</span>, m)
+<span style="color:#66d9ef">print</span>(<span style="color:#e6db74">&#39;p-val: &#39;</span>, p)
+<span style="color:#66d9ef">print</span>(<span style="color:#e6db74">&#39;stder: &#39;</span>, err)
+</code></pre></div><pre><code>slope:  1.1040213480877819
+p-val:  6.6717451825543705e-12
+stder:  0.007507917062931846
+</code></pre>
+<p>So the complexity of generating the sparse matrix is very certainly with an
+exponent of about 10% larger than linear.</p>
+<p>It&rsquo;s also interesting that the operator builds the sparse matrix faster than
+ARPACK can diagonalize it for $L \in {6, 8}$, but then it is slower until
+ARPACK catches up again near $L=20$.</p>
+<p>This is not the full story behind these implementations.
+Clearly, the fact the operator causes Python to crash at $L=22$ implies
+that the memory footprint of that algorithm is unreasonable, though
+the runtimes alone do not seem to reveal this as an issue.
+To test this, try running the <code>tfim.z.old_old_H_sparse</code> function to see
+when the code crashes.</p>
+<p>Update: I was able to stretch the solver to larger system sizes by rewriting the
+code that builds the matrix to reflect the constrained size of the matrix.
+That is, there are exactly $(L + 1) 2^L$ elements in the sparse matrix of shape
+$(2^L, 2^L)$, and so we can preallocate this number of elements to do things
+faster.
+Rewriting the COO code in <code>numpy</code> (which has since been improved) gave these times:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">%</span>time H <span style="color:#f92672">=</span> tfim<span style="color:#f92672">.</span>z<span style="color:#f92672">.</span>H_sparse(<span style="color:#ae81ff">22</span>, <span style="color:#ae81ff">1</span>, <span style="color:#e6db74">&#39;c&#39;</span>)
+
+CPU times: user <span style="color:#ae81ff">1</span>min <span style="color:#ae81ff">52</span>s, sys: <span style="color:#ae81ff">2.45</span> s, total: <span style="color:#ae81ff">1</span>min <span style="color:#ae81ff">55</span>s
+Wall time: <span style="color:#ae81ff">1</span>min <span style="color:#ae81ff">55</span>s
+    
+<span style="color:#f92672">%</span>time evals <span style="color:#f92672">=</span> sla<span style="color:#f92672">.</span>eigsh(H, which<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;BE&#39;</span>, return_eigenvectors<span style="color:#f92672">=</span>False)
+
+CPU times: user <span style="color:#ae81ff">12</span>min <span style="color:#ae81ff">3</span>s, sys: <span style="color:#ae81ff">15.9</span> s, total: <span style="color:#ae81ff">12</span>min <span style="color:#ae81ff">19</span>s
+Wall time: <span style="color:#ae81ff">2</span>min <span style="color:#ae81ff">4</span>s
+</code></pre></div><p>While it is rather dismal that the sparse matrix takes so long to build in
+Python, we do finally observe that the diagonalization routine takes off to
+as the system size grows.
+To see the speed of current Python implementation, try running this:
+(Warning, the last time I tried running this, it caused the Jupyter kernel to crash)</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">%</span>time tfim<span style="color:#f92672">.</span>z<span style="color:#f92672">.</span>old_H_sparse(<span style="color:#ae81ff">22</span>, <span style="color:#ae81ff">1</span>, <span style="color:#e6db74">&#39;c&#39;</span>)
+</code></pre></div><p>Newer Update: Since rewriting and optimizing Fortran code called with <code>f2py</code>,
+I have an implementation that performs $\mathcal O ((L + 1) 2^L)$ assignments
+in the case of the z basis.
+This is an improvement over the Python code that constructs the sparse matrix,
+which I believe uses $\mathcal O (L 2^{L+1})$ assignments.
+It&rsquo;s also far better than $\mathcal O (2^{2L})$ from explicitly calculating all
+of the matrix elements.
+(At this point I think I&rsquo;ve exhausted all of the ways of building the matrix.
+I&rsquo;ve calculated the explicit matrix elements, built the matrix from Kronecker
+products, built it in sparse format by exploring all the allowed bit manipulations
+on the computational basis, and also used matrix-vector multiplication.
+To some extent, in both Python and Fortran.)
+I just got these estimates by counting the for loops in the code.
+For larger system sizes (those which are limited by the available storage space)
+this will probably build the sparse Hamiltonian at breakneck speed.</p>
+<p>The current time it takes the most optimal Fortran implementation to construct
+the matrix is:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">%</span>time tfim<span style="color:#f92672">.</span>z<span style="color:#f92672">.</span>H_sparse(<span style="color:#ae81ff">22</span>, <span style="color:#ae81ff">1</span>, <span style="color:#e6db74">&#39;c&#39;</span>)
+</code></pre></div><pre><code>CPU times: user 2.71 s, sys: 3.96 s, total: 6.67 s
+Wall time: 6.69 s
+
+
+
+
+
+&lt;4194304x4194304 sparse matrix of type '&lt;class 'numpy.float64'&gt;'
+	with 96468992 stored elements in Compressed Sparse Row format&gt;
+</code></pre>
+<h3 id="all-calculations">All calculations</h3>
+<p>These are all the parameter values for which I have calculated wavefunctions
+and energies for 6 extremal eigenvalues.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#75715e"># All values obtained</span>
+L <span style="color:#f92672">=</span> range(<span style="color:#ae81ff">8</span>, <span style="color:#ae81ff">21</span>, <span style="color:#ae81ff">2</span>)
+h <span style="color:#f92672">=</span> [<span style="color:#ae81ff">0.3</span>, <span style="color:#ae81ff">0.5</span>, <span style="color:#ae81ff">0.7</span>, <span style="color:#ae81ff">0.8</span>, <span style="color:#ae81ff">0.85</span>, <span style="color:#ae81ff">0.9</span>, <span style="color:#ae81ff">0.95</span>, <span style="color:#ae81ff">1</span>, <span style="color:#ae81ff">1.05</span>, <span style="color:#ae81ff">1.1</span>, <span style="color:#ae81ff">1.15</span>, <span style="color:#ae81ff">1.2</span>, <span style="color:#ae81ff">1.3</span>, <span style="color:#ae81ff">1.5</span>, <span style="color:#ae81ff">1.7</span>]
+bc <span style="color:#f92672">=</span> [<span style="color:#e6db74">&#39;o&#39;</span>, <span style="color:#e6db74">&#39;c&#39;</span>]
+</code></pre></div><div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">results <span style="color:#f92672">=</span> dict()
+<span style="color:#66d9ef">for</span> k, v <span style="color:#f92672">in</span> d<span style="color:#f92672">.</span>items():
+    method <span style="color:#f92672">=</span> <span style="color:#e6db74">&#39;+&#39;</span><span style="color:#f92672">.</span>join([v[<span style="color:#e6db74">&#39;oper&#39;</span>], v[<span style="color:#e6db74">&#39;solver&#39;</span>]])
+    <span style="color:#66d9ef">if</span> method <span style="color:#f92672">not</span> <span style="color:#f92672">in</span> results:
+        results[method] <span style="color:#f92672">=</span> {
+            <span style="color:#e6db74">&#39;L&#39;</span> : [],
+            <span style="color:#e6db74">&#39;h&#39;</span> : [],
+            <span style="color:#e6db74">&#39;bc&#39;</span>: [],
+        }
+    results[method][<span style="color:#e6db74">&#39;L&#39;</span>]<span style="color:#f92672">.</span>append(v[<span style="color:#e6db74">&#39;L&#39;</span>])
+    results[method][<span style="color:#e6db74">&#39;h&#39;</span>]<span style="color:#f92672">.</span>append(v[<span style="color:#e6db74">&#39;h&#39;</span>])
+    results[method][<span style="color:#e6db74">&#39;bc&#39;</span>]<span style="color:#f92672">.</span>append(v[<span style="color:#e6db74">&#39;bc&#39;</span>])
+</code></pre></div><div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">
+</code></pre></div>
+
+
+      
+    </article>
+    
+  </div>
+
+        </div><footer>
+  <div class="container">
+    <p class="credits copyright">
+      <p class="credits theme-by">
+        <a href="https://lxvm.github.io/ph121c/">root</a>
+      </p>
+    </p>
+  </div>
+</footer>
+</body>
+</html>

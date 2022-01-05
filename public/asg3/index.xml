@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Assignment 3 on Lorenzo X. Van Muñoz</title>
+    <link>https://lxvm.github.io/ph121c/asg3/</link>
+    <description>Recent content in Assignment 3 on Lorenzo X. Van Muñoz</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>en</language>
+    <lastBuildDate>Fri, 14 May 2021 04:30:50 -0700</lastBuildDate><atom:link href="https://lxvm.github.io/ph121c/asg3/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Assignment 3: Part 3</title>
+      <link>https://lxvm.github.io/ph121c/asg3/violations/</link>
+      <pubDate>Wed, 19 May 2021 02:58:02 -0700</pubDate>
+      
+      <guid>https://lxvm.github.io/ph121c/asg3/violations/</guid>
+      <description>Violations of ETH $ \require{physics} \def\bm{\boldsymbol} $
+from itertools import product import numpy as np import pandas as pd from scipy import optimize import matplotlib.pyplot as plt %matplotlib inline from ph121c_lxvm import models, data, basis, measure Many-body localized model We introduce disorder to the model we have used before by allowing random coefficients: $$ H = \sum_{j=1}^L \sigma_j^z \sigma_{j+1}^z - \sum_{j=1}^L h_j^x \sigma_j^x - \sum_{j=1}^L h_j^z \sigma_j^z . $$ The random coefficients $h_j^x$ and $h_j^z$ are sampled uniformly from $[W, W]$, where the magnitude of $W$ determines the strength of the random noise.</description>
+    </item>
+    
+    <item>
+      <title>Assignment 3: Part 2</title>
+      <link>https://lxvm.github.io/ph121c/asg3/eigenstate/</link>
+      <pubDate>Wed, 19 May 2021 02:57:54 -0700</pubDate>
+      
+      <guid>https://lxvm.github.io/ph121c/asg3/eigenstate/</guid>
+      <description>Eigenstate ETH $\require{physics}$
+import numpy as np import pandas as pd import matplotlib.pyplot as plt %matplotlib inline from ph121c_lxvm import data, models, basis, tensor, measure Observables in excited states We are going to measure the expectation values of the Pauli operators in the energy eigenbasis. And we are going to plot them. Same Hamiltonian as last time.
+Here we are supposed to use the fact $\ket{\xi}$ from last time is translation invariant, so we&amp;rsquo;ll restrict to the $k=0$ momentum sector of the Hamiltonian by filtering states in the wrong sector with $\ev{T}{n} \neq 1$.</description>
+    </item>
+    
+    <item>
+      <title>Assignment 3: Part 1</title>
+      <link>https://lxvm.github.io/ph121c/asg3/dynamic/</link>
+      <pubDate>Wed, 19 May 2021 02:57:45 -0700</pubDate>
+      
+      <guid>https://lxvm.github.io/ph121c/asg3/dynamic/</guid>
+      <description>Dynamical ETH $ \require{physics} \def\bm{\boldsymbol} \def\indx{\sigma_1, \dots, \sigma_L} \def\ind{\tau_1, \dots, \tau_L} $
+import numpy as np import pandas as pd from scipy import optimize import matplotlib.pyplot as plt %matplotlib inline from ph121c_lxvm import models, data, tests, measure, tensor, basis The model we will study in this notebook is: $$ H = \sum_{j=1}^L \sigma_j^z \sigma_{j+1}^z - h^x \sum_{j=1}^L \sigma_j^x - h^z \sum_{j=1}^L \sigma_j^z . $$ We are interested in the fact that $h^z \neq 0$ makes this TFIM Hamiltonian non-integrable, and creates eigenstate thermalization.</description>
+    </item>
+    
+  </channel>
+</rss>

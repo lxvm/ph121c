@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en"><meta charset="utf-8" />
+
+  <title>Assignment 2: Part 5 - Lorenzo X. Van Muñoz</title>
+
+
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="stylesheet" href="https://lxvm.github.io/ph121c/css/latex.css" />
+<link rel="stylesheet" href="https://lxvm.github.io/ph121c/css/main.css" />
+<script>
+  MathJax = {
+    tex: {
+      inlineMath: [['$', '$'], ["\\(", "\\)"]]
+    }
+  };
+</script>
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<meta name="generator" content="Hugo 0.80.0" /><body>
+
+
+<header>
+  <div class="intro-header">
+    <div class="container">
+      <div class="asg2-heading">
+        
+          <h1>Assignment 2: Part 5</h1>
+        
+      </div>
+    </div>
+  </div>
+</header>
+
+        <div id="content">
+  <div class="container" role="main">
+    <article class="article" class="blog-post">
+      <div class="postmeta">
+        <span class="meta-post">
+  
+</span>
+
+      </div>
+      <br>
+      <h1 id="matrix-product-state-representation-for-ground-states">Matrix product state representation for ground states</h1>
+<p>$
+\require{physics}
+\def\bm{\boldsymbol}
+$</p>
+<h2 id="introduction">Introduction</h2>
+<p>Clearly, God did not conceive the universe as a point because God would not be
+able to take the outer product of two points to obtain vectors.
+So in the beginning, there were at least two vectors, and God took the outer
+product to make higher order tensors, the inner product to make lower order
+tensors: these were the binary operators on tensors.
+God defined these tensors over a field and also used the transpose and inverse.
+We believe God may have saved us because God invented index notation
+so that any of this could make sense.
+Therefore tensors, their fields, their classes, their algebras, and their calculus
+is the only way that it is convenient to express the geometry of the universe.</p>
+<p>Sometimes smart people find ways to represent large tensors by smaller tensors,
+and this assignment is originated in this observation.
+The goal is to rewrite a tensor of dimension $d^L$ which describes the state
+of a qu$d$it chain of known $L$ength as a matrix product.
+We do so using the SVD and Schmidt decomposition techniques explored earlier.</p>
+<p>Other projects seem pretty useful to look into for helpful
+<a href="https://tensornetwork.org/">resources</a> and
+<a href="https://github.com/google/TensorNetwork">software</a>.
+This is a <a href="https://arxiv.org/abs/1008.3477">useful paper</a> cited in the
+assignment on the subject.</p>
+<h2 id="mps-representation">MPS representation</h2>
+<p>One asks how you actually do this task efficiently, which comes down to knowing
+how to represent the MPS wavefunction in memory.
+Choose a positive integer value for $d$ and $L$.
+The representation is of the form
+$$
+\psi_{\sigma_1, \dots, \sigma_L} =
+\sum_{\alpha_0, \dots, \alpha_L}
+\left( \prod_{i=0}^{L-1} A_{\alpha_i \alpha_{i+1}}^{\sigma_{i+1}} \right)
+$$
+where
+\begin{align}
+\dim(\alpha_i) \leq
+\begin{cases}
+d^i
+&amp;\qq{i $\leq$ L/2}
+\\<br>
+d^{L-i}
+&amp;\qq{i &gt; L/2}
+\end{cases}
+.
+\end{align}
+The form of this dimensionality is due to the way the mps representation is
+constructed: a tensor is reshaped and has its SVD taken many times,
+each new time after another reshaping and SVD.
+Essentially these dimensions are the maximal ranks of a matrix as it is reshaped
+from $(1, d^L)$ to $(d^L, 1)$ when exchanging rows to columns $d$ at a time.
+Now an approximation scheme for MPS is a map:
+\begin{align}
+r(i) : {i} \to {1, \dots, \max(1, \min(d r(i-1), \dim(\alpha_i))}
+\end{align}
+with $r(0) = 1$
+that specifies the number of rows retained at each bond index.
+This is a finite but large function space, and of the many approximation schemes
+it often makes sense to choose a simple one, such as
+$r(i) = \min(\chi, \dim(\alpha_i))$ for constant $\chi$.</p>
+<h3 id="scaling">Scaling</h3>
+<p>The scaling of storage requirements as a function of the approximation scheme
+can be calculated succinctly as $d \sum_i r(i) r(i+1)$.
+Taking $r=\dim(\alpha_i)$ makes for an inefficient full representation of the
+because of the $d^L$ scaling for the individual matrices.
+For what truncation ranks $r$ is MPS an efficient storage scheme?
+We will test the accuracy of the scheme later.</p>
+<h2 id="program">Program</h2>
+<ul>
+<li>$d=2, r=\chi=1$ ($r=1$ is a special case where the storage format can be optimized)</li>
+<li>For $h \in { 1, 5/4 }$</li>
+<li>Take the ground state in the open system at large L</li>
+<li>Compute the MPS approximation of the wavefunction, varying the bond length $k$</li>
+<li>Calculate the actual reduction in storage space (np.size)</li>
+<li>Contract the indices of the tensors of MPS to obtain exponentially large
+$\ket{\tilde{\psi}_{gs} (k)}$.</li>
+<li>Compute the overlap $\braket{\tilde{\psi}_{gs} (k)}{\psi_{gs}}$</li>
+</ul>
+<h3 id="efficient-calculations-with-mps">Efficient calculations with MPS</h3>
+<ul>
+<li>Use MPS to calculate
+$E(k) = \ev{H}{\tilde{\psi}_{gs} (k)} / \braket{\tilde{\psi}_{gs} (k)}$</li>
+<li>Compute the same correlation functions as in Assignment 1 at both values of
+the order parameter and study the convergence in $k$.</li>
+</ul>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">from</span> itertools <span style="color:#f92672">import</span> product 
+
+<span style="color:#f92672">import</span> numpy <span style="color:#f92672">as</span> np
+<span style="color:#f92672">import</span> pandas <span style="color:#f92672">as</span> pd
+<span style="color:#f92672">import</span> scipy.sparse.linalg <span style="color:#f92672">as</span> sla
+<span style="color:#f92672">import</span> matplotlib.pyplot <span style="color:#f92672">as</span> plt
+<span style="color:#f92672">%</span>matplotlib inline
+
+<span style="color:#f92672">from</span> ph121c_lxvm <span style="color:#f92672">import</span> basis, tfim, tests, tensor, data
+</code></pre></div><div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">%%</span>time
+measurements <span style="color:#f92672">=</span> {
+    <span style="color:#e6db74">&#39;bc&#39;</span>: [],
+    <span style="color:#e6db74">&#39;L&#39;</span> : [],
+    <span style="color:#e6db74">&#39;h&#39;</span> : [],
+    <span style="color:#e6db74">&#39;k&#39;</span> : [],
+    <span style="color:#e6db74">&#39;N&#39;</span> : [],
+    <span style="color:#e6db74">&#39;nm&#39;</span>: [],
+    <span style="color:#e6db74">&#39;E&#39;</span> : [],
+    <span style="color:#e6db74">&#39;Ek&#39;</span>: [],
+    <span style="color:#e6db74">&#39;ip&#39;</span>: [],
+    <span style="color:#e6db74">&#39;Cz&#39;</span>: [],
+    <span style="color:#e6db74">&#39;Mz&#39;</span>: [],
+}
+
+<span style="color:#66d9ef">for</span> oper_params <span style="color:#f92672">in</span> tests<span style="color:#f92672">.</span>tfim_sweep(
+    L <span style="color:#f92672">=</span> [<span style="color:#ae81ff">16</span>],
+    h <span style="color:#f92672">=</span> [<span style="color:#ae81ff">1</span>, <span style="color:#ae81ff">1.2</span>],
+    bc<span style="color:#f92672">=</span> [<span style="color:#e6db74">&#39;o&#39;</span>],
+):
+    job <span style="color:#f92672">=</span> dict(
+        oper<span style="color:#f92672">=</span>tfim<span style="color:#f92672">.</span>z<span style="color:#f92672">.</span>H_sparse,
+        oper_params<span style="color:#f92672">=</span>oper_params,
+        solver<span style="color:#f92672">=</span>sla<span style="color:#f92672">.</span>eigsh,
+        solver_params<span style="color:#f92672">=</span>{ 
+            <span style="color:#e6db74">&#39;k&#39;</span> : <span style="color:#ae81ff">6</span>, 
+            <span style="color:#e6db74">&#39;which&#39;</span> : <span style="color:#e6db74">&#39;BE&#39;</span>,
+        },
+    )
+    evals, evecs <span style="color:#f92672">=</span> data<span style="color:#f92672">.</span>jobs<span style="color:#f92672">.</span>obtain(<span style="color:#f92672">**</span>job)
+    
+    <span style="color:#75715e"># construct local operators</span>
+    sx <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>array([[<span style="color:#ae81ff">0</span>, <span style="color:#ae81ff">1</span>], [<span style="color:#ae81ff">1</span>, <span style="color:#ae81ff">0</span>]], dtype<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;float64&#39;</span>)
+    sz <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>array([[<span style="color:#ae81ff">1</span>, <span style="color:#ae81ff">0</span>], [<span style="color:#ae81ff">0</span>, <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>]], dtype<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;float64&#39;</span>)
+        
+    C <span style="color:#f92672">=</span> tensor<span style="color:#f92672">.</span>mpo(oper_params[<span style="color:#e6db74">&#39;L&#39;</span>], d<span style="color:#f92672">=</span><span style="color:#ae81ff">2</span>)
+    C[<span style="color:#ae81ff">0</span>] <span style="color:#f92672">=</span> sz
+    C[oper_params[<span style="color:#e6db74">&#39;L&#39;</span>] <span style="color:#f92672">//</span> <span style="color:#ae81ff">2</span>] <span style="color:#f92672">=</span> sz
+    
+    <span style="color:#75715e"># Construct operators which are sums of local operators</span>
+    <span style="color:#75715e"># (sums of mpos are not always mpos)</span>
+    H <span style="color:#f92672">=</span> []
+    M <span style="color:#f92672">=</span> []
+    
+    <span style="color:#75715e"># Hamiltonian</span>
+    <span style="color:#75715e">## z terms</span>
+    <span style="color:#66d9ef">for</span> i <span style="color:#f92672">in</span> range(oper_params[<span style="color:#e6db74">&#39;L&#39;</span>] <span style="color:#f92672">-</span> <span style="color:#ae81ff">1</span> <span style="color:#f92672">+</span> (oper_params[<span style="color:#e6db74">&#39;bc&#39;</span>] <span style="color:#f92672">==</span> <span style="color:#e6db74">&#39;c&#39;</span>)):
+        H<span style="color:#f92672">.</span>append(tensor<span style="color:#f92672">.</span>mpo(oper_params[<span style="color:#e6db74">&#39;L&#39;</span>], d<span style="color:#f92672">=</span><span style="color:#ae81ff">2</span>))
+        H[<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>][i] <span style="color:#f92672">=</span> <span style="color:#f92672">-</span>sz
+        H[<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>][(i<span style="color:#f92672">+</span><span style="color:#ae81ff">1</span>) <span style="color:#f92672">%</span> oper_params[<span style="color:#e6db74">&#39;L&#39;</span>]] <span style="color:#f92672">=</span> sz
+    <span style="color:#75715e">## x terms</span>
+    <span style="color:#66d9ef">for</span> i <span style="color:#f92672">in</span> range(oper_params[<span style="color:#e6db74">&#39;L&#39;</span>]):
+        H<span style="color:#f92672">.</span>append(tensor<span style="color:#f92672">.</span>mpo(oper_params[<span style="color:#e6db74">&#39;L&#39;</span>], d<span style="color:#f92672">=</span><span style="color:#ae81ff">2</span>))
+        H[<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>][i] <span style="color:#f92672">=</span> <span style="color:#f92672">-</span>oper_params[<span style="color:#e6db74">&#39;h&#39;</span>] <span style="color:#f92672">*</span> sx
+        
+    <span style="color:#75715e"># Magnetization</span>
+    <span style="color:#66d9ef">for</span> i, j <span style="color:#f92672">in</span> product(np<span style="color:#f92672">.</span>arange(oper_params[<span style="color:#e6db74">&#39;L&#39;</span>]), repeat<span style="color:#f92672">=</span><span style="color:#ae81ff">2</span>):
+        M<span style="color:#f92672">.</span>append(tensor<span style="color:#f92672">.</span>mpo(oper_params[<span style="color:#e6db74">&#39;L&#39;</span>], d<span style="color:#f92672">=</span><span style="color:#ae81ff">2</span>))
+        M[<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>][i] <span style="color:#f92672">=</span> sz <span style="color:#f92672">/</span> (oper_params[<span style="color:#e6db74">&#39;L&#39;</span>] <span style="color:#f92672">**</span> <span style="color:#ae81ff">2</span>)
+        M[<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>][j] <span style="color:#f92672">=</span> sz
+    
+    <span style="color:#75715e"># Do the MPS</span>
+    chi_max <span style="color:#f92672">=</span> <span style="color:#ae81ff">20</span>
+    rank <span style="color:#f92672">=</span> tensor<span style="color:#f92672">.</span>bond_rank(chi_max, oper_params[<span style="color:#e6db74">&#39;L&#39;</span>], d<span style="color:#f92672">=</span><span style="color:#ae81ff">2</span>)
+    A <span style="color:#f92672">=</span> tensor<span style="color:#f92672">.</span>mps(evecs[:, <span style="color:#ae81ff">0</span>], rank, L<span style="color:#f92672">=</span>oper_params[<span style="color:#e6db74">&#39;L&#39;</span>], d<span style="color:#f92672">=</span><span style="color:#ae81ff">2</span>)
+
+    <span style="color:#66d9ef">for</span> i <span style="color:#f92672">in</span> range(chi_max <span style="color:#f92672">-</span> <span style="color:#ae81ff">1</span>):
+        rank <span style="color:#f92672">=</span> tensor<span style="color:#f92672">.</span>bond_rank(chi_max <span style="color:#f92672">-</span> i, oper_params[<span style="color:#e6db74">&#39;L&#39;</span>], d<span style="color:#f92672">=</span><span style="color:#ae81ff">2</span>)
+        A<span style="color:#f92672">.</span>lower_rank(rank)
+        measurements[<span style="color:#e6db74">&#39;bc&#39;</span>]<span style="color:#f92672">.</span>append(
+            oper_params[<span style="color:#e6db74">&#39;bc&#39;</span>]
+        )
+        measurements[<span style="color:#e6db74">&#39;L&#39;</span>]<span style="color:#f92672">.</span>append(
+            oper_params[<span style="color:#e6db74">&#39;L&#39;</span>]
+        )
+        measurements[<span style="color:#e6db74">&#39;h&#39;</span>]<span style="color:#f92672">.</span>append(
+            oper_params[<span style="color:#e6db74">&#39;h&#39;</span>]
+        )
+        measurements[<span style="color:#e6db74">&#39;k&#39;</span>]<span style="color:#f92672">.</span>append(
+            chi_max <span style="color:#f92672">-</span> i
+        )
+        measurements[<span style="color:#e6db74">&#39;N&#39;</span>]<span style="color:#f92672">.</span>append(
+            A<span style="color:#f92672">.</span>size()
+        )
+        measurements[<span style="color:#e6db74">&#39;nm&#39;</span>]<span style="color:#f92672">.</span>append(
+            A<span style="color:#f92672">.</span>inner(A)
+        )
+        measurements[<span style="color:#e6db74">&#39;E&#39;</span>]<span style="color:#f92672">.</span>append(
+            evals[<span style="color:#ae81ff">0</span>]
+        )
+        measurements[<span style="color:#e6db74">&#39;ip&#39;</span>]<span style="color:#f92672">.</span>append(
+            np<span style="color:#f92672">.</span>inner(A<span style="color:#f92672">.</span>v, A<span style="color:#f92672">.</span>contract_bonds()) <span style="color:#f92672">/</span> np<span style="color:#f92672">.</span>sqrt(measurements[<span style="color:#e6db74">&#39;nm&#39;</span>][<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>])
+        )
+        measurements[<span style="color:#e6db74">&#39;Ek&#39;</span>]<span style="color:#f92672">.</span>append(
+            sum(A<span style="color:#f92672">.</span>expval(e) <span style="color:#66d9ef">for</span> e <span style="color:#f92672">in</span> H) <span style="color:#f92672">/</span> measurements[<span style="color:#e6db74">&#39;nm&#39;</span>][<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>]
+        )
+        measurements[<span style="color:#e6db74">&#39;Cz&#39;</span>]<span style="color:#f92672">.</span>append(
+            A<span style="color:#f92672">.</span>expval(C) <span style="color:#f92672">/</span> measurements[<span style="color:#e6db74">&#39;nm&#39;</span>][<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>]
+        )
+        measurements[<span style="color:#e6db74">&#39;Mz&#39;</span>]<span style="color:#f92672">.</span>append(
+            sum(A<span style="color:#f92672">.</span>expval(e) <span style="color:#66d9ef">for</span> e <span style="color:#f92672">in</span> M) <span style="color:#f92672">/</span> measurements[<span style="color:#e6db74">&#39;nm&#39;</span>][<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>]
+        )
+        
+df <span style="color:#f92672">=</span> pd<span style="color:#f92672">.</span>DataFrame(measurements)
+</code></pre></div><pre><code>CPU times: user 8min 5s, sys: 1.24 s, total: 8min 6s
+Wall time: 7min 25s
+</code></pre>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">%%</span>capture plot
+<span style="color:#75715e"># make the k saturation plots</span>
+myplots <span style="color:#f92672">=</span> [<span style="color:#e6db74">&#39;Ek&#39;</span>, <span style="color:#e6db74">&#39;N&#39;</span>, <span style="color:#e6db74">&#39;ip&#39;</span>, <span style="color:#e6db74">&#39;Cz&#39;</span>, <span style="color:#e6db74">&#39;Mz&#39;</span>]
+ncol <span style="color:#f92672">=</span> <span style="color:#ae81ff">2</span>
+nrow <span style="color:#f92672">=</span> len(myplots) <span style="color:#f92672">//</span> <span style="color:#ae81ff">2</span> <span style="color:#f92672">+</span> len(myplots) <span style="color:#f92672">%</span> <span style="color:#ae81ff">2</span>
+
+fig, axes <span style="color:#f92672">=</span> plt<span style="color:#f92672">.</span>subplots(nrow, ncol)
+
+<span style="color:#66d9ef">for</span> i, row <span style="color:#f92672">in</span> enumerate(axes):
+    <span style="color:#66d9ef">for</span> j, ax <span style="color:#f92672">in</span> enumerate(row):
+        <span style="color:#66d9ef">if</span> (ncol <span style="color:#f92672">*</span> i <span style="color:#f92672">+</span> j) <span style="color:#f92672">&lt;</span> len(myplots):
+            <span style="color:#66d9ef">for</span> h <span style="color:#f92672">in</span> [<span style="color:#ae81ff">1</span>, <span style="color:#ae81ff">1.2</span>]:
+                ax<span style="color:#f92672">.</span>plot(
+                    df[df<span style="color:#f92672">.</span>h <span style="color:#f92672">==</span> h][<span style="color:#e6db74">&#39;k&#39;</span>]<span style="color:#f92672">.</span>values,
+                    df[df<span style="color:#f92672">.</span>h <span style="color:#f92672">==</span> h][myplots[i <span style="color:#f92672">*</span> ncol <span style="color:#f92672">+</span> j]]<span style="color:#f92672">.</span>values,
+                    label<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;h=&#39;</span> <span style="color:#f92672">+</span> str(h),
+                )
+            ax<span style="color:#f92672">.</span>set_xlabel(<span style="color:#e6db74">&#39;k&#39;</span>)
+            ax<span style="color:#f92672">.</span>set_ylabel(myplots[i <span style="color:#f92672">*</span> ncol <span style="color:#f92672">+</span> j])
+            handles, labels <span style="color:#f92672">=</span> ax<span style="color:#f92672">.</span>get_legend_handles_labels()
+        <span style="color:#66d9ef">else</span>:
+            ax<span style="color:#f92672">.</span>set_axis_off()
+            ax<span style="color:#f92672">.</span>legend(handles, labels, loc<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;center&#39;</span>)
+    fig<span style="color:#f92672">.</span>tight_layout()
+</code></pre></div><div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">%%</span>capture corr
+<span style="color:#75715e"># Make the long-range correlation plots</span>
+rank <span style="color:#f92672">=</span> tensor<span style="color:#f92672">.</span>bond_rank(chi_max, oper_params[<span style="color:#e6db74">&#39;L&#39;</span>], d<span style="color:#f92672">=</span><span style="color:#ae81ff">2</span>)
+A <span style="color:#f92672">=</span> tensor<span style="color:#f92672">.</span>mps(evecs[:, <span style="color:#ae81ff">0</span>], rank, L<span style="color:#f92672">=</span>oper_params[<span style="color:#e6db74">&#39;L&#39;</span>], d<span style="color:#f92672">=</span><span style="color:#ae81ff">2</span>)
+
+C <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>empty(oper_params[<span style="color:#e6db74">&#39;L&#39;</span>], dtype<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;object&#39;</span>)
+x <span style="color:#f92672">=</span> [<span style="color:#ae81ff">0</span>]
+y <span style="color:#f92672">=</span> [<span style="color:#ae81ff">1</span>]
+C[<span style="color:#ae81ff">0</span>] <span style="color:#f92672">=</span> sz
+<span style="color:#66d9ef">for</span> i <span style="color:#f92672">in</span> range(<span style="color:#ae81ff">1</span>, oper_params[<span style="color:#e6db74">&#39;L&#39;</span>]):
+    C[i] <span style="color:#f92672">=</span> sz
+    x<span style="color:#f92672">.</span>append(i)
+    y<span style="color:#f92672">.</span>append(A<span style="color:#f92672">.</span>expval(C) <span style="color:#f92672">/</span> measurements[<span style="color:#e6db74">&#39;nm&#39;</span>][<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>])
+    C[i] <span style="color:#f92672">=</span> None
+fig, ax <span style="color:#f92672">=</span> plt<span style="color:#f92672">.</span>subplots()
+ax<span style="color:#f92672">.</span>plot(x, y)
+ax<span style="color:#f92672">.</span>set_xlabel(<span style="color:#e6db74">&#39;r&#39;</span>)
+ax<span style="color:#f92672">.</span>set_ylabel(<span style="color:#e6db74">&#39;$C^{zz}_r$&#39;</span>)
+plt<span style="color:#f92672">.</span>show()
+</code></pre></div><h2 id="results">Results</h2>
+<h3 id="accuracy">Accuracy</h3>
+<p>I first wanted to show some of the numerical results in decimal form so that
+I have an opportunity to explain my abbreviations, and to show that the
+calculations are relatively accurate.
+The table below shows how several calculated quanties vary as a function of $k$,
+The quantities of interest are $N$, the actual number of coefficients stored in
+the mps approximation, $E_k$, the MPS expectation value of the energy of the
+ground state MPS wavefunction, $nm$, the norm of the wavefunction, $ip$, the
+overlap of the ground state vector with the MPS wavefunction after contracting
+its virtual indices, $C^{zz}$, the two-point spin correlation function measured
+at a distance of $L/2$, and $M^{zz}$, which is the normalized expected value
+of the magnetization of the chain.
+These values are:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">df<span style="color:#f92672">.</span>tail()
+</code></pre></div><div>
+<style scoped>
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+<pre><code>.dataframe tbody tr th {
+    vertical-align: top;
+}
+
+.dataframe thead th {
+    text-align: right;
+}
+</code></pre>
+<p></style></p>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>bc</th>
+      <th>L</th>
+      <th>h</th>
+      <th>k</th>
+      <th>N</th>
+      <th>nm</th>
+      <th>E</th>
+      <th>Ek</th>
+      <th>ip</th>
+      <th>Cz</th>
+      <th>Mz</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>33</th>
+      <td>o</td>
+      <td>16</td>
+      <td>1.2</td>
+      <td>6</td>
+      <td>856</td>
+      <td>1.000000</td>
+      <td>-22.464998</td>
+      <td>-22.464998</td>
+      <td>1.000000</td>
+      <td>0.042561</td>
+      <td>0.151028</td>
+    </tr>
+    <tr>
+      <th>34</th>
+      <td>o</td>
+      <td>16</td>
+      <td>1.2</td>
+      <td>5</td>
+      <td>620</td>
+      <td>1.000000</td>
+      <td>-22.464998</td>
+      <td>-22.464995</td>
+      <td>1.000000</td>
+      <td>0.042531</td>
+      <td>0.151009</td>
+    </tr>
+    <tr>
+      <th>35</th>
+      <td>o</td>
+      <td>16</td>
+      <td>1.2</td>
+      <td>4</td>
+      <td>424</td>
+      <td>0.999995</td>
+      <td>-22.464998</td>
+      <td>-22.464974</td>
+      <td>0.999997</td>
+      <td>0.042135</td>
+      <td>0.150831</td>
+    </tr>
+    <tr>
+      <th>36</th>
+      <td>o</td>
+      <td>16</td>
+      <td>1.2</td>
+      <td>3</td>
+      <td>248</td>
+      <td>0.999784</td>
+      <td>-22.464998</td>
+      <td>-22.463383</td>
+      <td>0.999892</td>
+      <td>0.039861</td>
+      <td>0.149105</td>
+    </tr>
+    <tr>
+      <th>37</th>
+      <td>o</td>
+      <td>16</td>
+      <td>1.2</td>
+      <td>2</td>
+      <td>120</td>
+      <td>0.997312</td>
+      <td>-22.464998</td>
+      <td>-22.453767</td>
+      <td>0.998689</td>
+      <td>0.024050</td>
+      <td>0.139941</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+<p>When $k=2$, the MPS values are correct to within 0.1% of the original, such
+as by comparing $E$, the exact diagonalization energy, with $E_k$, or the norm
+with the expected value of 1.
+However, the values appear to saturate as $k$ grows and already at $k=4$ it
+appears though some of the quantites are the same as $k=5$ with the 8 or so
+digits we can see.
+In particular, we see that the MPS ground state energy decreases towards the
+minimal exact value as the quality of approximation improves.</p>
+<h2 id="saturation-of-bond-dimension">Saturation of bond dimension</h2>
+<p>We can visualize some of these values to get a wider look at the dependence on
+$k$.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">plot<span style="color:#f92672">.</span>show()
+</code></pre></div><p><img src="output_13_0.png" alt="png"></p>
+<p>It appears that the values have all saturated long before reaching the maximum
+bond dimension of $k=20$ &ndash; already it seems that at $k=5$ there won&rsquo;t be
+noticeable changes in any quantity, except for $N$ which is the rapidly-growing
+storage requirement (compare this to $2^{16} = 65,536$ coefficients in the
+dense vector representation of the wavefunction).
+Across two different values of $h$, at the critical value and in the paramagnetic
+phase (the paramagnetic effect is stronger for a larger system size such as
+this one, $L=16$), we observe the same physics as in the first assignment.
+The values of the correlation functions are two to three times higher for $h=1$
+than in the transverse-field dominated $h=1.2$ regime.
+In addition, due to this value of $h$, the ground state energy is lower for
+larger $h$, as observed last time, due to the influence of the aligning effect
+of the field.</p>
+<h3 id="verifying-long-range-correlations">Verifying long-range correlations</h3>
+<p>Another thing to verify is not only $C^{zz}$ at the half-way point in the chain,
+but correlation as a function of all distances at the chain.
+I repeated this measurement from the first assignment in the MPS representation,
+using the reference spin as the left boundary and measuring the $z$ spin
+correlation with the rest of the chain.
+The plot below, at $L=16$ and $h=1.2$ and open boundary conditions, shows how
+the correlations decay exponentially with the distance due to the strong effect
+of the transverse terms in the TFIM Hamiltonian in the paramagnetic phase.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">corr<span style="color:#f92672">.</span>show()
+</code></pre></div><p><img src="output_16_0.png" alt="png"></p>
+<h2 id="discussion">Discussion</h2>
+<p>We have implemented a functional MPS representation that allows for a massive
+reduction in storage space ($k=5$ corresponds to 620 coefficients versus
+65,536 in the dense wavefunction at $L=16$).
+This was possible because the Hamiltonian of this system is 2-local and
+with open boundary conditions, which curb the entanglement entropy of the system
+so that we can truncate the smallest Schmidt values to good approximation at
+each step in the MPS representation.
+In particular, this is true for very few states, those with an area law for the
+entanglement entropy, such as the ground state and most excited state.</p>
+<p>My implementation of mps is practical and has been tested for qudit systems
+for $d=3, 4$ in the <code>ph121c_lxvm.tests.tensor</code> module.
+Ultimately, if we consider translation invariant systems, we should test
+that the order in which we do MPS in the chain does not affect the results.
+I think with my current code on permutations in the <code>ph121c_lxvm.basis</code> module
+makes this possible by adding one line of code that I have commented in the
+<code>__init__</code> method for the <code>tensor.mps</code> class.
+However, that permutation code only works for $d=2$, so I&rsquo;d have to put some
+thought into what algorithm can be used for larger $d$ because we lose the
+convenience of binary to some extent.</p>
+<h2 id="testing-the-ceiling">Testing the ceiling</h2>
+<p>I will do one last test to see the feasibility/runtime of the MPS scheme at
+$L=20$ with the bond dimension of $k=20$, while also calculating the expected
+energy of the state, at all truncations of $k$ from 1 to 5.
+The idea is to see whether the larger system size poses difficulties on the
+runtime or the accuracy of the approximation scheme.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">%%</span>time
+<span style="color:#66d9ef">for</span> oper_params <span style="color:#f92672">in</span> tests<span style="color:#f92672">.</span>tfim_sweep(
+    L <span style="color:#f92672">=</span> [<span style="color:#ae81ff">20</span>],
+    h <span style="color:#f92672">=</span> [<span style="color:#ae81ff">1</span>],
+    bc<span style="color:#f92672">=</span> [<span style="color:#e6db74">&#39;o&#39;</span>],
+):
+    job <span style="color:#f92672">=</span> dict(
+        oper<span style="color:#f92672">=</span>tfim<span style="color:#f92672">.</span>z<span style="color:#f92672">.</span>H_sparse,
+        oper_params<span style="color:#f92672">=</span>oper_params,
+        solver<span style="color:#f92672">=</span>sla<span style="color:#f92672">.</span>eigsh,
+        solver_params<span style="color:#f92672">=</span>{ 
+            <span style="color:#e6db74">&#39;k&#39;</span> : <span style="color:#ae81ff">6</span>, 
+            <span style="color:#e6db74">&#39;which&#39;</span> : <span style="color:#e6db74">&#39;BE&#39;</span>,
+        },
+    )
+    evals, evecs <span style="color:#f92672">=</span> data<span style="color:#f92672">.</span>jobs<span style="color:#f92672">.</span>obtain(<span style="color:#f92672">**</span>job)
+    
+    <span style="color:#75715e"># construct local operators</span>
+    sx <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>array([[<span style="color:#ae81ff">0</span>, <span style="color:#ae81ff">1</span>], [<span style="color:#ae81ff">1</span>, <span style="color:#ae81ff">0</span>]], dtype<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;float64&#39;</span>)
+    sz <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>array([[<span style="color:#ae81ff">1</span>, <span style="color:#ae81ff">0</span>], [<span style="color:#ae81ff">0</span>, <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>]], dtype<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;float64&#39;</span>)
+    
+    <span style="color:#75715e"># Construct operators which are sums of local operators</span>
+    <span style="color:#75715e"># (sums of mpos are not always mpos)</span>
+    H <span style="color:#f92672">=</span> []
+    
+    <span style="color:#75715e"># Hamiltonian</span>
+    <span style="color:#75715e">## z terms</span>
+    <span style="color:#66d9ef">for</span> i <span style="color:#f92672">in</span> range(oper_params[<span style="color:#e6db74">&#39;L&#39;</span>] <span style="color:#f92672">-</span> <span style="color:#ae81ff">1</span> <span style="color:#f92672">+</span> (oper_params[<span style="color:#e6db74">&#39;bc&#39;</span>] <span style="color:#f92672">==</span> <span style="color:#e6db74">&#39;c&#39;</span>)):
+        H<span style="color:#f92672">.</span>append(tensor<span style="color:#f92672">.</span>mpo(oper_params[<span style="color:#e6db74">&#39;L&#39;</span>], d<span style="color:#f92672">=</span><span style="color:#ae81ff">2</span>))
+        H[<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>][i] <span style="color:#f92672">=</span> <span style="color:#f92672">-</span>sz
+        H[<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>][(i<span style="color:#f92672">+</span><span style="color:#ae81ff">1</span>) <span style="color:#f92672">%</span> oper_params[<span style="color:#e6db74">&#39;L&#39;</span>]] <span style="color:#f92672">=</span> sz
+    <span style="color:#75715e">## x terms</span>
+    <span style="color:#66d9ef">for</span> i <span style="color:#f92672">in</span> range(oper_params[<span style="color:#e6db74">&#39;L&#39;</span>]):
+        H<span style="color:#f92672">.</span>append(tensor<span style="color:#f92672">.</span>mpo(oper_params[<span style="color:#e6db74">&#39;L&#39;</span>], d<span style="color:#f92672">=</span><span style="color:#ae81ff">2</span>))
+        H[<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>][i] <span style="color:#f92672">=</span> <span style="color:#f92672">-</span>oper_params[<span style="color:#e6db74">&#39;h&#39;</span>] <span style="color:#f92672">*</span> sx
+        
+    <span style="color:#75715e"># Do the MPS</span>
+    chi_max <span style="color:#f92672">=</span> <span style="color:#ae81ff">20</span>
+    rank <span style="color:#f92672">=</span> tensor<span style="color:#f92672">.</span>bond_rank(chi_max, oper_params[<span style="color:#e6db74">&#39;L&#39;</span>], d<span style="color:#f92672">=</span><span style="color:#ae81ff">2</span>)
+    A <span style="color:#f92672">=</span> tensor<span style="color:#f92672">.</span>mps(evecs[:, <span style="color:#ae81ff">0</span>], rank, L<span style="color:#f92672">=</span>oper_params[<span style="color:#e6db74">&#39;L&#39;</span>], d<span style="color:#f92672">=</span><span style="color:#ae81ff">2</span>)
+    
+    <span style="color:#66d9ef">print</span>(
+        <span style="color:#e6db74">&#39;L=&#39;</span>, oper_params[<span style="color:#e6db74">&#39;L&#39;</span>],
+        <span style="color:#e6db74">&#39;h=&#39;</span>, oper_params[<span style="color:#e6db74">&#39;h&#39;</span>],
+        <span style="color:#e6db74">&#39;bc=&#39;</span>, oper_params[<span style="color:#e6db74">&#39;bc&#39;</span>],
+    )
+    <span style="color:#66d9ef">print</span>(f<span style="color:#e6db74">&#39;GS energy (ED, N={A.v.size}):&#39;</span>, evals[<span style="color:#ae81ff">0</span>])
+    
+    <span style="color:#66d9ef">for</span> i <span style="color:#f92672">in</span> range(chi_max <span style="color:#f92672">-</span> <span style="color:#ae81ff">1</span>):
+        rank <span style="color:#f92672">=</span> tensor<span style="color:#f92672">.</span>bond_rank(chi_max <span style="color:#f92672">-</span> i, oper_params[<span style="color:#e6db74">&#39;L&#39;</span>], d<span style="color:#f92672">=</span><span style="color:#ae81ff">2</span>)
+        A<span style="color:#f92672">.</span>lower_rank(rank)
+        <span style="color:#66d9ef">print</span>(
+            f<span style="color:#e6db74">&#39;GS energy (k={chi_max - i}, N={A.size()}):&#39;</span>,
+            sum(A<span style="color:#f92672">.</span>expval(e) <span style="color:#66d9ef">for</span> e <span style="color:#f92672">in</span> H) <span style="color:#f92672">/</span> A<span style="color:#f92672">.</span>inner(A),
+        )
+</code></pre></div><pre><code>L= 20 h= 1 bc= o
+GS energy (ED, N=1048576): -25.107797111623707
+GS energy (k=20, N=9960): -25.107797111623768
+GS energy (k=19, N=9116): -25.10779711162373
+GS energy (k=18, N=8312): -25.10779711162367
+GS energy (k=17, N=7548): -25.107797111623395
+GS energy (k=16, N=6824): -25.107797111622258
+GS energy (k=15, N=6048): -25.10779711162034
+GS energy (k=14, N=5320): -25.10779711161205
+GS energy (k=13, N=4640): -25.107797111536886
+GS energy (k=12, N=4008): -25.10779711113673
+GS energy (k=11, N=3424): -25.10779711084674
+GS energy (k=10, N=2888): -25.107797109071836
+GS energy (k=9, N=2400): -25.107796991932208
+GS energy (k=8, N=1960): -25.10779672401916
+GS energy (k=7, N=1524): -25.107796334675882
+GS energy (k=6, N=1144): -25.10779522504112
+GS energy (k=5, N=820): -25.107721356074386
+GS energy (k=4, N=552): -25.107495385020844
+GS energy (k=3, N=320): -25.088852485114337
+GS energy (k=2, N=152): -25.037706037740858
+CPU times: user 5.02 s, sys: 35.7 ms, total: 5.06 s
+Wall time: 3.15 s
+</code></pre>
+<p>Wow, that series of operations is really trivial, and the compression ratio is
+really fantastic!
+In contrast, what takes a long time is contracting the virtual indices
+in all $2^L$ possible ways, even when $k=2$ (as it is here):</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">%</span>time np<span style="color:#f92672">.</span>inner(A<span style="color:#f92672">.</span>v, A<span style="color:#f92672">.</span>contract_bonds())
+</code></pre></div><pre><code>CPU times: user 3min 21s, sys: 1.87 s, total: 3min 23s
+Wall time: 3min 20s
+
+0.9799687081812974
+</code></pre>
+<p>I was wondering why the first program took so long &ndash; clearly because of this
+exponentially-scaling operation to calculate the overlap, whereas the polynomial
+tensor network contractions were much faster.
+The overlap is within 2% at $k=2$, which is amazing, but to actually calculate
+this on a regular basis would be unfeasible &hellip; unless I write it in Fortran :).
+For fun, what happens with $k=1$?
+This would be the case of classical physics, where each spin is assigned a
+probability of being up or down, and the probability of the whole system
+being in a given spin configuration is just the product of probabilities at
+each site.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">rank <span style="color:#f92672">=</span> tensor<span style="color:#f92672">.</span>bond_rank(<span style="color:#ae81ff">1</span>, oper_params[<span style="color:#e6db74">&#39;L&#39;</span>], d<span style="color:#f92672">=</span><span style="color:#ae81ff">2</span>)
+A<span style="color:#f92672">.</span>lower_rank(rank)
+<span style="color:#f92672">%</span>time np<span style="color:#f92672">.</span>inner(A<span style="color:#f92672">.</span>v, A<span style="color:#f92672">.</span>contract_bonds())
+</code></pre></div><pre><code>CPU times: user 3min 3s, sys: 1.59 s, total: 3min 4s
+Wall time: 3min 2s
+
+0.16368954570087002
+</code></pre>
+<p>Not a good approximation anymore!
+In this case, the storage requirement is just $2L$:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">A<span style="color:#f92672">.</span>size()
+</code></pre></div><pre><code>40
+</code></pre>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">
+</code></pre></div>
+
+
+      
+    </article>
+    
+  </div>
+
+        </div><footer>
+  <div class="container">
+    <p class="credits copyright">
+      <p class="credits theme-by">
+        <a href="https://lxvm.github.io/ph121c/">root</a>
+      </p>
+    </p>
+  </div>
+</footer>
+</body>
+</html>

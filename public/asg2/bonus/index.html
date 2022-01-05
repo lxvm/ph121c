@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en"><meta charset="utf-8" />
+
+  <title>Assignment 2 - Lorenzo X. Van Muñoz</title>
+
+
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="stylesheet" href="https://lxvm.github.io/ph121c/css/latex.css" />
+<link rel="stylesheet" href="https://lxvm.github.io/ph121c/css/main.css" />
+<script>
+  MathJax = {
+    tex: {
+      inlineMath: [['$', '$'], ["\\(", "\\)"]]
+    }
+  };
+</script>
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<meta name="generator" content="Hugo 0.80.0" /><body>
+
+
+<header>
+  <div class="intro-header">
+    <div class="container">
+      <div class="asg2-heading">
+        
+          <h1>Assignment 2</h1>
+        
+      </div>
+    </div>
+  </div>
+</header>
+
+        <div id="content">
+  <div class="container" role="main">
+    <article class="article" class="blog-post">
+      <div class="postmeta">
+        <span class="meta-post">
+  
+</span>
+
+      </div>
+      <br>
+      <h1 id="bonus">Bonus</h1>
+<p>$\require{physics}$</p>
+<h2 id="verifying-entanglement">Verifying entanglement</h2>
+<p>I wanted to check something about entanglement entropy in this assignment:
+are the Ising symmetry sectors of the Hamiltonian, which are uncoupled, not
+entangled?
+Since my code can handle building the Hamiltonian in the full x-basis as well
+as permutations to and from the Ising symmetry sectors, let&rsquo;s test it!</p>
+<p>We will find the ground state in the x basis and then sift out the system
+into a + symmetry sector and - symmetry sector, do an svd and look at the values.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">import</span> numpy <span style="color:#f92672">as</span> np
+<span style="color:#f92672">import</span> scipy.sparse.linalg <span style="color:#f92672">as</span> sla
+<span style="color:#f92672">import</span> matplotlib.pyplot <span style="color:#f92672">as</span> plt
+<span style="color:#f92672">%</span>matplotlib inline
+
+<span style="color:#f92672">from</span> ph121c_lxvm <span style="color:#f92672">import</span> basis, tfim, tests, measure, data, tensor
+</code></pre></div><div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#66d9ef">for</span> oper_params <span style="color:#f92672">in</span> tests<span style="color:#f92672">.</span>tfim_sweep(
+    L <span style="color:#f92672">=</span> [<span style="color:#ae81ff">14</span>],
+    h <span style="color:#f92672">=</span> [<span style="color:#ae81ff">1</span>],
+    bc<span style="color:#f92672">=</span> [<span style="color:#e6db74">&#39;c&#39;</span>],
+    sector<span style="color:#f92672">=</span>[<span style="color:#e6db74">&#39;f&#39;</span>]
+):
+    job <span style="color:#f92672">=</span> dict(
+        oper<span style="color:#f92672">=</span>tfim<span style="color:#f92672">.</span>x<span style="color:#f92672">.</span>H_sparse,
+        oper_params<span style="color:#f92672">=</span>oper_params,
+        solver<span style="color:#f92672">=</span>sla<span style="color:#f92672">.</span>eigsh,
+        solver_params<span style="color:#f92672">=</span>{ 
+            <span style="color:#e6db74">&#39;k&#39;</span> : <span style="color:#ae81ff">6</span>, 
+            <span style="color:#e6db74">&#39;which&#39;</span> : <span style="color:#e6db74">&#39;BE&#39;</span>,
+        },
+    )
+    evals, evecs <span style="color:#f92672">=</span> data<span style="color:#f92672">.</span>jobs<span style="color:#f92672">.</span>obtain(<span style="color:#f92672">**</span>job)
+    
+</code></pre></div><div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">vals <span style="color:#f92672">=</span> basis<span style="color:#f92672">.</span>schmidt<span style="color:#f92672">.</span>values(
+    <span style="color:#75715e"># permute the gs so the the + and - sectors are in block forms</span>
+    evecs[basis<span style="color:#f92672">.</span>unitary<span style="color:#f92672">.</span>Ising(oper_params[<span style="color:#e6db74">&#39;L&#39;</span>]), <span style="color:#ae81ff">0</span>],
+    <span style="color:#75715e"># perform matricization and svd with respect to the +/- subsystems</span>
+    np<span style="color:#f92672">.</span>array([oper_params[<span style="color:#e6db74">&#39;L&#39;</span>] <span style="color:#f92672">-</span> <span style="color:#ae81ff">1</span>]),
+    oper_params[<span style="color:#e6db74">&#39;L&#39;</span>]
+)
+<span style="color:#66d9ef">print</span>(<span style="color:#e6db74">&#39;singular values: &#39;</span>, vals)
+<span style="color:#66d9ef">print</span>(<span style="color:#e6db74">&#39;entanglement entropy:&#39;</span>, measure<span style="color:#f92672">.</span>entropy<span style="color:#f92672">.</span>entanglement(vals))
+</code></pre></div><pre><code>singular values:  [1.00000000e+00 2.14532468e-14]
+entanglement entropy: -2.2204460492213453e-15
+</code></pre>
+<p>I&rsquo;m rather confident that the code is correct because it passes all of my TFIM
+consistency and basis interconsistency tests.
+I might conclude that the existence of degenerate eigenspaces in the Hamiltonian
+with respect to some symmetry operator produces no entanglement entropy
+across the disjoint subsystems.</p>
+<h2 id="verifying-local-and-nonlocal-mps-operators">Verifying local and nonlocal mps operators</h2>
+<p>Brenden helped me test my mps code by posing the challenge of verifying the
+action of the Ising symmetry operator and of 1-point correlation functions
+in the ferromagnetic $h &lt; 1$ and paramagnetic $h &gt; 1$ domains.
+In both cases, the 1-point correlation operator $C^z_i = \ev{\sigma^z_i}$
+should vanish in expectation,
+Also, the Ising symmetry operator $U = \prod_i \sigma^x_i$ should yield the sign
+of the symmetry sector.
+In the following calculation, we test these ideas in the mps formalism after
+obtaining the ground states in the symmetry sectors and converting them to the
+z basis.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#66d9ef">for</span> oper_params <span style="color:#f92672">in</span> tests<span style="color:#f92672">.</span>tfim_sweep(
+    L <span style="color:#f92672">=</span> [<span style="color:#ae81ff">14</span>],
+    h <span style="color:#f92672">=</span> [<span style="color:#ae81ff">0.3</span>, <span style="color:#ae81ff">1.7</span>],
+    bc<span style="color:#f92672">=</span> [<span style="color:#e6db74">&#39;o&#39;</span>],
+    sector<span style="color:#f92672">=</span>[<span style="color:#e6db74">&#39;+&#39;</span>, <span style="color:#e6db74">&#39;-&#39;</span>],
+):
+    job <span style="color:#f92672">=</span> dict(
+        oper<span style="color:#f92672">=</span>tfim<span style="color:#f92672">.</span>x<span style="color:#f92672">.</span>H_sparse,
+        oper_params<span style="color:#f92672">=</span>oper_params,
+        solver<span style="color:#f92672">=</span>sla<span style="color:#f92672">.</span>eigsh,
+        solver_params<span style="color:#f92672">=</span>{ 
+            <span style="color:#e6db74">&#39;k&#39;</span> : <span style="color:#ae81ff">6</span>, 
+            <span style="color:#e6db74">&#39;which&#39;</span> : <span style="color:#e6db74">&#39;BE&#39;</span>,
+        },
+    )
+    evals, evecs <span style="color:#f92672">=</span> data<span style="color:#f92672">.</span>jobs<span style="color:#f92672">.</span>obtain(<span style="color:#f92672">**</span>job)
+    gs <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>zeros(<span style="color:#ae81ff">2</span> <span style="color:#f92672">**</span> oper_params[<span style="color:#e6db74">&#39;L&#39;</span>]) <span style="color:#75715e"># in sector basis</span>
+    <span style="color:#75715e"># expand to full x basis</span>
+    <span style="color:#75715e">## Insert into diagonal</span>
+    gs[((oper_params[<span style="color:#e6db74">&#39;sector&#39;</span>] <span style="color:#f92672">==</span> <span style="color:#e6db74">&#39;-&#39;</span>) <span style="color:#f92672">*</span> <span style="color:#ae81ff">2</span> <span style="color:#f92672">**</span> ((oper_params[<span style="color:#e6db74">&#39;L&#39;</span>] <span style="color:#f92672">-</span> <span style="color:#ae81ff">1</span>))) <span style="color:#f92672">+</span> np<span style="color:#f92672">.</span>arange(<span style="color:#ae81ff">2</span> <span style="color:#f92672">**</span> (oper_params[<span style="color:#e6db74">&#39;L&#39;</span>] <span style="color:#f92672">-</span> <span style="color:#ae81ff">1</span>))] <span style="color:#f92672">=</span> evecs[:, <span style="color:#ae81ff">0</span>]
+    <span style="color:#75715e">## rotate diagonal into full</span>
+    gs <span style="color:#f92672">=</span> gs[basis<span style="color:#f92672">.</span>unitary<span style="color:#f92672">.</span>Ising(oper_params[<span style="color:#e6db74">&#39;L&#39;</span>], inverse<span style="color:#f92672">=</span>True)]
+    <span style="color:#75715e"># rotate to z basis</span>
+    gs <span style="color:#f92672">=</span> basis<span style="color:#f92672">.</span>unitary<span style="color:#f92672">.</span>Hadamard(oper_params[<span style="color:#e6db74">&#39;L&#39;</span>]) <span style="color:#960050;background-color:#1e0010">@</span> gs
+    <span style="color:#75715e"># DO THE MPS</span>
+    chi_max <span style="color:#f92672">=</span> <span style="color:#ae81ff">5</span>
+    rank <span style="color:#f92672">=</span> tensor<span style="color:#f92672">.</span>bond_rank(chi_max, oper_params[<span style="color:#e6db74">&#39;L&#39;</span>], d<span style="color:#f92672">=</span><span style="color:#ae81ff">2</span>)
+    A <span style="color:#f92672">=</span> tensor<span style="color:#f92672">.</span>mps(gs, rank, oper_params[<span style="color:#e6db74">&#39;L&#39;</span>], <span style="color:#ae81ff">2</span>)
+    <span style="color:#75715e"># find the expectation values of the operators</span>
+    sx <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>array([[<span style="color:#ae81ff">0</span>, <span style="color:#ae81ff">1</span>], [<span style="color:#ae81ff">1</span>, <span style="color:#ae81ff">0</span>]], dtype<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;float64&#39;</span>)
+    sz <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>array([[<span style="color:#ae81ff">1</span>, <span style="color:#ae81ff">0</span>], [<span style="color:#ae81ff">0</span>, <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>]], dtype<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;float64&#39;</span>)
+    U  <span style="color:#f92672">=</span> tensor<span style="color:#f92672">.</span>mpo(oper_params[<span style="color:#e6db74">&#39;L&#39;</span>], d<span style="color:#f92672">=</span><span style="color:#ae81ff">2</span>)
+    <span style="color:#66d9ef">for</span> i <span style="color:#f92672">in</span> range(U<span style="color:#f92672">.</span>L):
+        U[i] <span style="color:#f92672">=</span> sx
+    C <span style="color:#f92672">=</span> tensor<span style="color:#f92672">.</span>mpo(oper_params[<span style="color:#e6db74">&#39;L&#39;</span>], d<span style="color:#f92672">=</span><span style="color:#ae81ff">2</span>)
+    C[<span style="color:#ae81ff">0</span>] <span style="color:#f92672">=</span> sz
+    <span style="color:#66d9ef">print</span>(
+        <span style="color:#e6db74">&#39;L =&#39;</span>, oper_params[<span style="color:#e6db74">&#39;L&#39;</span>],
+        <span style="color:#e6db74">&#39;: h =&#39;</span>, oper_params[<span style="color:#e6db74">&#39;h&#39;</span>],
+        <span style="color:#e6db74">&#39;: sector =&#39;</span>, oper_params[<span style="color:#e6db74">&#39;sector&#39;</span>],
+    )
+    <span style="color:#66d9ef">print</span>(<span style="color:#e6db74">&#39;1-point correlation expval:&#39;</span>, A<span style="color:#f92672">.</span>expval(C) <span style="color:#f92672">/</span> A<span style="color:#f92672">.</span>inner(A))
+    <span style="color:#66d9ef">print</span>(<span style="color:#e6db74">&#39;Ising operator expval     :&#39;</span>, A<span style="color:#f92672">.</span>expval(U) <span style="color:#f92672">/</span> A<span style="color:#f92672">.</span>inner(A))
+    <span style="color:#66d9ef">print</span>(<span style="color:#e6db74">&#39;&#39;</span>)
+</code></pre></div><pre><code>L = 14 : h = 0.3 : sector = +
+1-point correlation expval: -1.3322676295501896e-15
+Ising operator expval     : 1.0
+
+L = 14 : h = 0.3 : sector = -
+1-point correlation expval: -1.942890293094023e-15
+Ising operator expval     : -0.9999999999999996
+
+L = 14 : h = 1.7 : sector = +
+1-point correlation expval: -2.2784508654782915e-16
+Ising operator expval     : 0.9999999999999998
+
+L = 14 : h = 1.7 : sector = -
+1-point correlation expval: 8.673617379884047e-17
+Ising operator expval     : -0.9999999999999998
+</code></pre>
+<p>That seems about right.
+Thank god that the implementation is working.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">
+</code></pre></div>
+
+
+      
+    </article>
+    
+  </div>
+
+        </div><footer>
+  <div class="container">
+    <p class="credits copyright">
+      <p class="credits theme-by">
+        <a href="https://lxvm.github.io/ph121c/">root</a>
+      </p>
+    </p>
+  </div>
+</footer>
+</body>
+</html>

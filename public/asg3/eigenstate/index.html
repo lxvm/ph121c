@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en"><meta charset="utf-8" />
+
+  <title>Assignment 3: Part 2 - Lorenzo X. Van Muñoz</title>
+
+
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="stylesheet" href="https://lxvm.github.io/ph121c/css/latex.css" />
+<link rel="stylesheet" href="https://lxvm.github.io/ph121c/css/main.css" />
+<script>
+  MathJax = {
+    tex: {
+      inlineMath: [['$', '$'], ["\\(", "\\)"]]
+    }
+  };
+</script>
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<meta name="generator" content="Hugo 0.80.0" /><body>
+
+
+<header>
+  <div class="intro-header">
+    <div class="container">
+      <div class="asg3-heading">
+        
+          <h1>Assignment 3: Part 2</h1>
+        
+      </div>
+    </div>
+  </div>
+</header>
+
+        <div id="content">
+  <div class="container" role="main">
+    <article class="article" class="blog-post">
+      <div class="postmeta">
+        <span class="meta-post">
+  
+</span>
+
+      </div>
+      <br>
+      <h1 id="eigenstate-eth">Eigenstate ETH</h1>
+<p>$\require{physics}$</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">import</span> numpy <span style="color:#f92672">as</span> np
+<span style="color:#f92672">import</span> pandas <span style="color:#f92672">as</span> pd
+<span style="color:#f92672">import</span> matplotlib.pyplot <span style="color:#f92672">as</span> plt
+<span style="color:#f92672">%</span>matplotlib inline
+
+<span style="color:#f92672">from</span> ph121c_lxvm <span style="color:#f92672">import</span> data, models, basis, tensor, measure
+</code></pre></div><h2 id="observables-in-excited-states">Observables in excited states</h2>
+<p>We are going to measure the expectation values of the Pauli operators in the
+energy eigenbasis. And we are going to <em>plot</em> them. Same Hamiltonian as last time.</p>
+<p>Here we are supposed to use the fact $\ket{\xi}$ from last time is translation
+invariant, so we&rsquo;ll restrict to the $k=0$ momentum sector of the Hamiltonian
+by filtering states in the wrong sector with $\ev{T}{n} \neq 1$.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">%%</span>time
+
+hx, hz <span style="color:#f92672">=</span> (<span style="color:#f92672">-</span><span style="color:#ae81ff">1.05</span>, <span style="color:#ae81ff">0.5</span>)
+bc <span style="color:#f92672">=</span> <span style="color:#e6db74">&#39;c&#39;</span>
+sizes <span style="color:#f92672">=</span> [<span style="color:#ae81ff">8</span>, <span style="color:#ae81ff">10</span>, <span style="color:#ae81ff">12</span>]<span style="color:#75715e">#, 14] # kernel crashes at 14: maybe raise stack limit?</span>
+opers <span style="color:#f92672">=</span> [<span style="color:#e6db74">&#39;x&#39;</span>, <span style="color:#e6db74">&#39;y&#39;</span>, <span style="color:#e6db74">&#39;z&#39;</span>]
+values <span style="color:#f92672">=</span> {
+    <span style="color:#e6db74">&#39;Pauli&#39;</span> : [],
+    <span style="color:#e6db74">&#39;vals&#39;</span> : [],
+    <span style="color:#e6db74">&#39;L&#39;</span> : [],
+    <span style="color:#e6db74">&#39;E&#39;</span> : [],
+    <span style="color:#e6db74">&#39;n&#39;</span> : [],
+}
+sector <span style="color:#f92672">=</span> { str(e): [] <span style="color:#66d9ef">for</span> e <span style="color:#f92672">in</span> sizes }
+
+<span style="color:#66d9ef">for</span> L <span style="color:#f92672">in</span> sizes:
+
+    job <span style="color:#f92672">=</span> dict(
+        oper<span style="color:#f92672">=</span>models<span style="color:#f92672">.</span>tfim_z<span style="color:#f92672">.</span>H_dense,
+        oper_params<span style="color:#f92672">=</span>{
+            <span style="color:#e6db74">&#39;L&#39;</span> : L,
+            <span style="color:#e6db74">&#39;h&#39;</span> : hx,
+            <span style="color:#e6db74">&#39;hz&#39;</span>: hz,
+            <span style="color:#e6db74">&#39;bc&#39;</span>: bc,
+        },
+        solver<span style="color:#f92672">=</span>np<span style="color:#f92672">.</span>linalg<span style="color:#f92672">.</span>eigh,
+        solver_params<span style="color:#f92672">=</span>{},
+    )
+    evals, evecs <span style="color:#f92672">=</span> data<span style="color:#f92672">.</span>jobs<span style="color:#f92672">.</span>obtain(<span style="color:#f92672">**</span>job)
+    <span style="color:#75715e"># cyclic permutation by translation operator</span>
+    perm <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>arange(L)
+    perm <span style="color:#f92672">+=</span> <span style="color:#ae81ff">1</span>
+    perm[<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>] <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>
+    <span style="color:#75715e"># identify vectors in k=0 sector</span>
+    <span style="color:#66d9ef">for</span> i <span style="color:#f92672">in</span> range(evals<span style="color:#f92672">.</span>size):
+        <span style="color:#66d9ef">if</span> np<span style="color:#f92672">.</span>allclose(np<span style="color:#f92672">.</span>inner(evecs[:, i], 
+            basis<span style="color:#f92672">.</span>schmidt<span style="color:#f92672">.</span>permute(evecs[:, i], [], L, perm<span style="color:#f92672">=</span>perm)
+        ), <span style="color:#ae81ff">1</span>):
+            sector[str(L)]<span style="color:#f92672">.</span>append(i)
+    <span style="color:#75715e"># Now calculate expectation values</span>
+    <span style="color:#66d9ef">for</span> which <span style="color:#f92672">in</span> opers:
+        <span style="color:#66d9ef">for</span> i <span style="color:#f92672">in</span> sector[str(L)]:
+            tevals <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>zeros(<span style="color:#ae81ff">2</span> <span style="color:#f92672">**</span> L, dtype<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;complex&#39;</span>)
+            tevals[i] <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>
+            cevecs <span style="color:#f92672">=</span> (tevals <span style="color:#f92672">*</span> evecs)<span style="color:#f92672">.</span>T<span style="color:#f92672">.</span>astype(<span style="color:#e6db74">&#39;complex&#39;</span>)
+            values[<span style="color:#e6db74">&#39;vals&#39;</span>]<span style="color:#f92672">.</span>append(
+                measure<span style="color:#f92672">.</span>evolve<span style="color:#f92672">.</span>Pauli_ev(
+                    L<span style="color:#f92672">=</span>L, Nstp<span style="color:#f92672">=</span><span style="color:#ae81ff">1</span>, which<span style="color:#f92672">=</span>which, cevecs<span style="color:#f92672">=</span>cevecs, tevals<span style="color:#f92672">=</span>tevals,
+                    num_threads<span style="color:#f92672">=</span><span style="color:#ae81ff">4</span>
+                )
+            )
+            values[<span style="color:#e6db74">&#39;L&#39;</span>]<span style="color:#f92672">.</span>append(L)
+            values[<span style="color:#e6db74">&#39;n&#39;</span>]<span style="color:#f92672">.</span>append(i)
+            values[<span style="color:#e6db74">&#39;E&#39;</span>]<span style="color:#f92672">.</span>append(evals[i])
+            values[<span style="color:#e6db74">&#39;Pauli&#39;</span>]<span style="color:#f92672">.</span>append(which)
+df <span style="color:#f92672">=</span> pd<span style="color:#f92672">.</span>DataFrame(values)
+</code></pre></div><pre><code>CPU times: user 9min 36s, sys: 51.3 s, total: 10min 28s
+Wall time: 2min 38s
+</code></pre>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">fig, axes <span style="color:#f92672">=</span> plt<span style="color:#f92672">.</span>subplots(<span style="color:#ae81ff">1</span>, len(opers))
+<span style="color:#66d9ef">for</span> i, ax <span style="color:#f92672">in</span> enumerate(axes):
+    <span style="color:#66d9ef">for</span> L <span style="color:#f92672">in</span> sizes:
+        ax<span style="color:#f92672">.</span>plot(
+            df[(df<span style="color:#f92672">.</span>L <span style="color:#f92672">==</span> L) <span style="color:#f92672">&amp;</span> (df<span style="color:#f92672">.</span>Pauli <span style="color:#f92672">==</span> opers[i])]<span style="color:#f92672">.</span>E<span style="color:#f92672">.</span>values <span style="color:#f92672">/</span> L,
+            df[(df<span style="color:#f92672">.</span>L <span style="color:#f92672">==</span> L) <span style="color:#f92672">&amp;</span> (df<span style="color:#f92672">.</span>Pauli <span style="color:#f92672">==</span> opers[i])]<span style="color:#f92672">.</span>vals<span style="color:#f92672">.</span>values,
+            label<span style="color:#f92672">=</span>f<span style="color:#e6db74">&#39;$L={L}$&#39;</span>, alpha<span style="color:#f92672">=</span><span style="color:#ae81ff">0.8</span>
+        )
+    ax<span style="color:#f92672">.</span>set_title(f<span style="color:#e6db74">&#39;$</span><span style="color:#ae81ff">\\</span><span style="color:#e6db74">sigma_0^{opers[i]}$&#39;</span>)
+    ax<span style="color:#f92672">.</span>set_xlabel(<span style="color:#e6db74">&#39;$</span><span style="color:#ae81ff">\\</span><span style="color:#e6db74">epsilon_n / L$&#39;</span>)
+    ax<span style="color:#f92672">.</span>set_ylabel(<span style="color:#e6db74">&#39;$</span><span style="color:#ae81ff">\\</span><span style="color:#e6db74">langle </span><span style="color:#ae81ff">\\</span><span style="color:#e6db74">sigma_0^{opers[i]} </span><span style="color:#ae81ff">\\</span><span style="color:#e6db74">rangle_n$&#39;</span>)
+    ax<span style="color:#f92672">.</span>legend()
+fig<span style="color:#f92672">.</span>set_size_inches(<span style="color:#ae81ff">9</span>, <span style="color:#ae81ff">6</span>)
+fig<span style="color:#f92672">.</span>tight_layout()
+</code></pre></div><p><img src="output_4_0.png" alt="png"></p>
+<p>If I reason too much about these plots, my brain might pop, but we can describe
+some of what is going on. In the $\sigma^z$ plot, higher energies correspond
+to less magnetic correlation of the first spin, while near the ground state
+the first site is much more likely to point up to align with the parallel
+and interaction terms in the Hamiltonian. As before $\sigma^y$ vanishes, and
+so $\sigma^x$ remains, and it simply grows with the energy, almost equal and
+opposite $\sigma^z$, as the higher energy states are aligning with the transverse
+field.</p>
+<p>In general, as a function of $L$, it appears that all the expectation values
+don&rsquo;t change with $L$ in this data. I think I can see that the yellow
+is noisier than the green, so maybe the variance is decreasing as $L$ increases.
+From ETH behavior, we would expect that larger systems thermalize faster, and
+that the expectation values become more predictable.</p>
+<h2 id="entropic-signature-of-thermalization">Entropic signature of thermalization</h2>
+<p>Let&rsquo;s also get the half-system entanglement entropy of the $k=0$ momentum
+eigenstates:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">entropx <span style="color:#f92672">=</span> dict(L<span style="color:#f92672">=</span>[], S<span style="color:#f92672">=</span>[], E<span style="color:#f92672">=</span>[], n<span style="color:#f92672">=</span>[])
+
+<span style="color:#66d9ef">for</span> L <span style="color:#f92672">in</span> sizes:
+
+    job <span style="color:#f92672">=</span> dict(
+        oper<span style="color:#f92672">=</span>models<span style="color:#f92672">.</span>tfim_z<span style="color:#f92672">.</span>H_dense,
+        oper_params<span style="color:#f92672">=</span>{
+            <span style="color:#e6db74">&#39;L&#39;</span> : L,
+            <span style="color:#e6db74">&#39;h&#39;</span> : hx,
+            <span style="color:#e6db74">&#39;hz&#39;</span>: hz,
+            <span style="color:#e6db74">&#39;bc&#39;</span>: bc,
+        },
+        solver<span style="color:#f92672">=</span>np<span style="color:#f92672">.</span>linalg<span style="color:#f92672">.</span>eigh,
+        solver_params<span style="color:#f92672">=</span>{},
+    )
+    evals, evecs <span style="color:#f92672">=</span> data<span style="color:#f92672">.</span>jobs<span style="color:#f92672">.</span>obtain(<span style="color:#f92672">**</span>job)
+    <span style="color:#66d9ef">for</span> i <span style="color:#f92672">in</span> sector[str(L)]:
+        entropx[<span style="color:#e6db74">&#39;L&#39;</span>]<span style="color:#f92672">.</span>append(L)
+        entropx[<span style="color:#e6db74">&#39;n&#39;</span>]<span style="color:#f92672">.</span>append(i)
+        entropx[<span style="color:#e6db74">&#39;E&#39;</span>]<span style="color:#f92672">.</span>append(evals[i])
+        entropx[<span style="color:#e6db74">&#39;S&#39;</span>]<span style="color:#f92672">.</span>append(
+            measure<span style="color:#f92672">.</span>entropy<span style="color:#f92672">.</span>entanglement(basis<span style="color:#f92672">.</span>schmidt<span style="color:#f92672">.</span>values(
+                evecs[:, i], np<span style="color:#f92672">.</span>arange(L <span style="color:#f92672">//</span> <span style="color:#ae81ff">2</span>), L
+            ))
+        )
+        
+df <span style="color:#f92672">=</span> pd<span style="color:#f92672">.</span>DataFrame(entropx)
+</code></pre></div><div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">fig, ax <span style="color:#f92672">=</span> plt<span style="color:#f92672">.</span>subplots()
+<span style="color:#66d9ef">for</span> L <span style="color:#f92672">in</span> sizes:
+    ax<span style="color:#f92672">.</span>plot(df[df<span style="color:#f92672">.</span>L <span style="color:#f92672">==</span> L]<span style="color:#f92672">.</span>E<span style="color:#f92672">.</span>values <span style="color:#f92672">/</span> L,
+    df[df<span style="color:#f92672">.</span>L <span style="color:#f92672">==</span> L]<span style="color:#f92672">.</span>S<span style="color:#f92672">.</span>values <span style="color:#f92672">/</span> L,
+    label<span style="color:#f92672">=</span>f<span style="color:#e6db74">&#39;$L={L}$&#39;</span>
+)
+ax<span style="color:#f92672">.</span>set_title(<span style="color:#e6db74">&#39;Entanglement entropy&#39;</span>)
+ax<span style="color:#f92672">.</span>set_xlabel(<span style="color:#e6db74">&#39;$</span><span style="color:#ae81ff">\\</span><span style="color:#e6db74">epsilon_n / L$&#39;</span>)
+ax<span style="color:#f92672">.</span>set_ylabel(<span style="color:#e6db74">&#39;$S_{L/2} / L$&#39;</span>)
+ax<span style="color:#f92672">.</span>legend()
+plt<span style="color:#f92672">.</span>show()
+</code></pre></div><p><img src="output_8_0.png" alt="png"></p>
+<p>It appears that the entropy is minimized at the band edges and maximized in the
+center of the spectrum in the $k=0$ momentum sector.
+Also, the entropy, which we have normalized by the system size no longer appears
+to depend strongly on $L$, so we have found something more or less scale invariant.
+I believe this graphic is consistent with our exploration of area law and volume
+law scaling of the entanglement entropy.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">
+</code></pre></div>
+
+
+      
+    </article>
+    
+  </div>
+
+        </div><footer>
+  <div class="container">
+    <p class="credits copyright">
+      <p class="credits theme-by">
+        <a href="https://lxvm.github.io/ph121c/">root</a>
+      </p>
+    </p>
+  </div>
+</footer>
+</body>
+</html>

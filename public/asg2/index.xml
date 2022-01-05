@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Assignment 2 on Lorenzo X. Van Muñoz</title>
+    <link>https://lxvm.github.io/ph121c/asg2/</link>
+    <description>Recent content in Assignment 2 on Lorenzo X. Van Muñoz</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>en</language>
+    <lastBuildDate>Tue, 27 Apr 2021 20:35:17 -0700</lastBuildDate><atom:link href="https://lxvm.github.io/ph121c/asg2/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Assignment 2</title>
+      <link>https://lxvm.github.io/ph121c/asg2/bonus/</link>
+      <pubDate>Thu, 13 May 2021 20:35:17 -0700</pubDate>
+      
+      <guid>https://lxvm.github.io/ph121c/asg2/bonus/</guid>
+      <description>Bonus $\require{physics}$
+Verifying entanglement I wanted to check something about entanglement entropy in this assignment: are the Ising symmetry sectors of the Hamiltonian, which are uncoupled, not entangled? Since my code can handle building the Hamiltonian in the full x-basis as well as permutations to and from the Ising symmetry sectors, let&amp;rsquo;s test it!
+We will find the ground state in the x basis and then sift out the system into a + symmetry sector and - symmetry sector, do an svd and look at the values.</description>
+    </item>
+    
+    <item>
+      <title>Assignment 2: Part 5</title>
+      <link>https://lxvm.github.io/ph121c/asg2/mps/</link>
+      <pubDate>Thu, 13 May 2021 20:35:17 -0700</pubDate>
+      
+      <guid>https://lxvm.github.io/ph121c/asg2/mps/</guid>
+      <description>Matrix product state representation for ground states $ \require{physics} \def\bm{\boldsymbol} $
+Introduction Clearly, God did not conceive the universe as a point because God would not be able to take the outer product of two points to obtain vectors. So in the beginning, there were at least two vectors, and God took the outer product to make higher order tensors, the inner product to make lower order tensors: these were the binary operators on tensors.</description>
+    </item>
+    
+    <item>
+      <title>Assignment 2</title>
+      <link>https://lxvm.github.io/ph121c/asg2/appendix/</link>
+      <pubDate>Wed, 12 May 2021 01:26:57 -0700</pubDate>
+      
+      <guid>https://lxvm.github.io/ph121c/asg2/appendix/</guid>
+      <description>Appendix This notebook contains information only tangentially relevant to parts of the assignment, but may be useful anyways.
+Runtimes TFIM simulations I was able to run simulations of up to size $L=20$ before my sparse matrix builder collapsed the kernel while converting lists of matrix elements in COO format to the CSR representation. As Brenden suggested, it would faster and less problematic to do this in Fortran and save the sparse matrix in an intermediate step as a HDF5 dataset before loading it into numpy, but then if all we cared about was performance we would just write everything in Fortran.</description>
+    </item>
+    
+    <item>
+      <title>Assignment 2: Part 3</title>
+      <link>https://lxvm.github.io/ph121c/asg2/schmidt/</link>
+      <pubDate>Thu, 06 May 2021 01:30:37 -0700</pubDate>
+      
+      <guid>https://lxvm.github.io/ph121c/asg2/schmidt/</guid>
+      <description>Truncation error of Schmidt decomposition Introduction This time, at the ground state we are interested in open boundary conditions and performing the Schmidt decomposition at the middle of the chain. We also want to compute approximate ground states and identify the errors of these approximations.
+Program  Schmidt decomposition at the middle of the chain ($\ell = L/2$) Truncate the state at various ranks from 1 to $2^{L/2}$ For each approximation, calculate the Frobenius distance and the error in the ground state energy relative to the ground state energy from diagonalization  import numpy as np import pandas as pd import scipy.</description>
+    </item>
+    
+    <item>
+      <title>Assignment 2: Part 4</title>
+      <link>https://lxvm.github.io/ph121c/asg2/entropy_es/</link>
+      <pubDate>Thu, 06 May 2021 01:29:51 -0700</pubDate>
+      
+      <guid>https://lxvm.github.io/ph121c/asg2/entropy_es/</guid>
+      <description>Entanglement entropy of highly excited states Introduction We are interested in calculating the entanglement entropy for states at the middle of the spectrum, which sparse solvers do not do well (though it is ameliorated by transformations like shift-invert mode). Instead, I will obtain states via dense diagonalization
+Program  Calculate wavefunctions at center of spectrum using dense solver Repeat entropy calculations as in part 2  import numpy as np import pandas as pd import scipy.</description>
+    </item>
+    
+    <item>
+      <title>Assignment 2: Part 2</title>
+      <link>https://lxvm.github.io/ph121c/asg2/entropy_gs/</link>
+      <pubDate>Thu, 06 May 2021 01:27:05 -0700</pubDate>
+      
+      <guid>https://lxvm.github.io/ph121c/asg2/entropy_gs/</guid>
+      <description>Entanglement entropy of highly excited states Introduction We are interested in calculating the entanglement entropy for states at the middle of the spectrum, which sparse solvers do not do well (though it is ameliorated by transformations like shift-invert mode). Instead, I will obtain states via dense diagonalization
+Program  Calculate wavefunctions at center of spectrum using dense solver Repeat entropy calculations as in part 2  import numpy as np import pandas as pd import scipy.</description>
+    </item>
+    
+    <item>
+      <title>Assigment 2: Part 1</title>
+      <link>https://lxvm.github.io/ph121c/asg2/images/</link>
+      <pubDate>Tue, 27 Apr 2021 20:35:17 -0700</pubDate>
+      
+      <guid>https://lxvm.github.io/ph121c/asg2/images/</guid>
+      <description>Part 1: Image compression Introduction I will be studying the singular value decomposition (SVD) of these images:
+  The image on the left is of the assignment. Henceforth, it is pic_1.png. Because we are doing SVD for this assignment, I thought it would be appropriate to do SVD on the assignment. Textual data may also provide a challenge for SVD, because rendering text well is a nontrivial task.
+The two images on the right come from my lab work on Se-Te nanostructures.</description>
+    </item>
+    
+  </channel>
+</rss>

@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en"><meta charset="utf-8" />
+
+  <title>Assigment 2: Part 1 - Lorenzo X. Van Muñoz</title>
+
+
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="stylesheet" href="https://lxvm.github.io/ph121c/css/latex.css" />
+<link rel="stylesheet" href="https://lxvm.github.io/ph121c/css/main.css" />
+<script>
+  MathJax = {
+    tex: {
+      inlineMath: [['$', '$'], ["\\(", "\\)"]]
+    }
+  };
+</script>
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<meta name="generator" content="Hugo 0.80.0" /><body>
+
+
+<header>
+  <div class="intro-header">
+    <div class="container">
+      <div class="asg2-heading">
+        
+          <h1>Assigment 2: Part 1</h1>
+        
+      </div>
+    </div>
+  </div>
+</header>
+
+        <div id="content">
+  <div class="container" role="main">
+    <article class="article" class="blog-post">
+      <div class="postmeta">
+        <span class="meta-post">
+  
+</span>
+
+      </div>
+      <br>
+      <h2 id="part-1-image-compression">Part 1: Image compression</h2>
+<h3 id="introduction">Introduction</h3>
+<p>I will be studying the singular value decomposition (SVD) of these images:</p>
+<div>
+<img src="pictures/pic_1.png" width="200"/>
+<img src="pictures/pic_2.png" width="200"/>
+<img src="pictures/pic_3.png" width="200"/>
+</div>
+<p>The image on the left is of the assignment.
+Henceforth, it is <code>pic_1.png</code>.
+Because we are doing SVD for this assignment, I thought it would be appropriate
+to do SVD on the assignment.
+Textual data may also provide a challenge for SVD, because rendering
+text well is a nontrivial task.</p>
+<p>The two images on the right come from my lab work on Se-Te nanostructures.
+These contain lamellar and circular patterns of different feature sizes.
+it will be interesting to see how their spectra compare to the text as well
+as how the reconstructions at various stages recapture the image quality.
+From left to right, these are <code>pic_2.png</code> and <code>pic_3.png</code>.</p>
+<h3 id="program">Program</h3>
+<p>In the section below, we do the following for each image:</p>
+<ul>
+<li>Read it into a grayscale array</li>
+<li>Compute the Frobenius norm of the matrix (to use for comparisons)</li>
+<li>Perform a singular value decomposition (SVD)</li>
+<li>Reconstruct the image from the largest $10^{k+2} %$ of the singular values
+for $k \in {-1, -2, -3}$</li>
+<li>Compute the Frobenius distance of the approximation to the original</li>
+<li>Save the reconstructed image</li>
+</ul>
+<p>We also:</p>
+<ul>
+<li>Create a plot of the SVD spectrum</li>
+<li>Save computed norms into a data frame</li>
+</ul>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">import</span> numpy <span style="color:#f92672">as</span> np
+<span style="color:#f92672">import</span> pandas <span style="color:#f92672">as</span> pd
+<span style="color:#f92672">from</span> PIL <span style="color:#f92672">import</span> Image, ImageOps
+<span style="color:#f92672">import</span> matplotlib.pyplot <span style="color:#f92672">as</span> plt
+<span style="color:#f92672">%</span>matplotlib inline
+</code></pre></div><div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">name_files</span>(pathname, ext, n<span style="color:#f92672">=</span><span style="color:#ae81ff">0</span>, out<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;&#39;</span>):
+    <span style="color:#e6db74">&#34;&#34;&#34;Outputs a generator of numbered strings &#39;folder/name[_i][_out].ext&#39;&#34;&#34;&#34;</span>
+    undr <span style="color:#f92672">=</span> <span style="color:#66d9ef">lambda</span> x, y: bool(x) <span style="color:#f92672">*</span> (<span style="color:#e6db74">&#39;_&#39;</span> <span style="color:#f92672">+</span> str(y))
+    <span style="color:#66d9ef">for</span> i <span style="color:#f92672">in</span> range(n):
+        <span style="color:#66d9ef">yield</span> <span style="color:#e6db74">&#39;&#39;</span><span style="color:#f92672">.</span>join([pathname, undr(n, i<span style="color:#f92672">+</span><span style="color:#ae81ff">1</span>), undr(out, out), <span style="color:#e6db74">&#39;.&#39;</span>, ext])
+
+<span style="color:#66d9ef">def</span> <span style="color:#a6e22e">svd_rc</span>(u, s, vh, n):
+    <span style="color:#e6db74">&#34;&#34;&#34;Reconstruct matrix using n largest principal values of svd&#34;&#34;&#34;</span>
+    <span style="color:#66d9ef">return</span> u[:, :n] <span style="color:#f92672">*</span> s[:n] <span style="color:#960050;background-color:#1e0010">@</span> vh[:n, :]
+</code></pre></div><div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">%%</span>capture plot
+
+pic_path  <span style="color:#f92672">=</span> <span style="color:#e6db74">&#39;pictures/pic&#39;</span>
+pic_files <span style="color:#f92672">=</span> name_files(pic_path, <span style="color:#e6db74">&#39;png&#39;</span>, <span style="color:#ae81ff">3</span>)
+
+fig, ax <span style="color:#f92672">=</span> plt<span style="color:#f92672">.</span>subplots()
+
+vals_og <span style="color:#f92672">=</span> { 
+    <span style="color:#e6db74">&#39;file&#39;</span> : [],
+    <span style="color:#e6db74">&#39;Nval&#39;</span> : [],
+    <span style="color:#e6db74">&#39;FroN&#39;</span> : [],
+}
+
+vals_rc <span style="color:#f92672">=</span> { 
+    <span style="color:#e6db74">&#39;file&#39;</span> : [],
+    <span style="color:#e6db74">&#39;expo&#39;</span> : [],
+    <span style="color:#e6db74">&#39;Nrec&#39;</span> : [],
+    <span style="color:#e6db74">&#39;FroD&#39;</span> : [],
+}
+
+<span style="color:#66d9ef">for</span> i, pic_file <span style="color:#f92672">in</span> enumerate(pic_files):
+    <span style="color:#75715e"># Convert image to grayscale array</span>
+    img <span style="color:#f92672">=</span> Image<span style="color:#f92672">.</span>open(pic_file)
+    img <span style="color:#f92672">=</span> ImageOps<span style="color:#f92672">.</span>grayscale(img)
+    <span style="color:#75715e"># Python feature: variables/pointers are not of fixed type</span>
+    img <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>asarray(img)
+    <span style="color:#75715e"># SVD of image</span>
+    res <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>linalg<span style="color:#f92672">.</span>svd(img, full_matrices<span style="color:#f92672">=</span>False)
+    <span style="color:#75715e"># Save total number of singular values and Frobenius norm of original</span>
+    vals_og[<span style="color:#e6db74">&#39;file&#39;</span>]<span style="color:#f92672">.</span>append(pic_file)
+    vals_og[<span style="color:#e6db74">&#39;Nval&#39;</span>]<span style="color:#f92672">.</span>append(res[<span style="color:#ae81ff">1</span>]<span style="color:#f92672">.</span>size)
+    vals_og[<span style="color:#e6db74">&#39;FroN&#39;</span>]<span style="color:#f92672">.</span>append(np<span style="color:#f92672">.</span>linalg<span style="color:#f92672">.</span>norm(img))
+    <span style="color:#75715e"># Plot spectrum normalized by array size and maximal principal value</span>
+    ax<span style="color:#f92672">.</span>loglog(
+        np<span style="color:#f92672">.</span>arange(res[<span style="color:#ae81ff">1</span>]<span style="color:#f92672">.</span>size) <span style="color:#f92672">/</span> res[<span style="color:#ae81ff">1</span>]<span style="color:#f92672">.</span>size, 
+        res[<span style="color:#ae81ff">1</span>] <span style="color:#f92672">/</span> np<span style="color:#f92672">.</span>max(res[<span style="color:#ae81ff">1</span>]), 
+        label<span style="color:#f92672">=</span>pic_file,
+    )
+    <span style="color:#66d9ef">for</span> k <span style="color:#f92672">in</span> range(<span style="color:#f92672">-</span><span style="color:#ae81ff">3</span>, <span style="color:#ae81ff">0</span>):
+        out_file <span style="color:#f92672">=</span> <span style="color:#e6db74">&#39;&#39;</span><span style="color:#f92672">.</span>join([pic_path, <span style="color:#e6db74">&#39;_&#39;</span>, str(i<span style="color:#f92672">+</span><span style="color:#ae81ff">1</span>), <span style="color:#e6db74">&#39;_out_k=&#39;</span>, str(k), <span style="color:#e6db74">&#39;.png&#39;</span>])
+        <span style="color:#75715e"># Reconstruct image from SVD with 10 ** k % of principal values</span>
+        Npv <span style="color:#f92672">=</span> int(np<span style="color:#f92672">.</span>ceil((<span style="color:#ae81ff">10</span> <span style="color:#f92672">**</span> k) <span style="color:#f92672">*</span> res[<span style="color:#ae81ff">1</span>]<span style="color:#f92672">.</span>size))
+        rec <span style="color:#f92672">=</span> svd_rc(<span style="color:#f92672">*</span>res, Npv)
+        <span style="color:#75715e"># Save number of values used in reconstruction and Frobenius distance</span>
+        vals_rc[<span style="color:#e6db74">&#39;file&#39;</span>]<span style="color:#f92672">.</span>append(pic_file)
+        vals_rc[<span style="color:#e6db74">&#39;expo&#39;</span>]<span style="color:#f92672">.</span>append(k)
+        vals_rc[<span style="color:#e6db74">&#39;Nrec&#39;</span>]<span style="color:#f92672">.</span>append(Npv)
+        vals_rc[<span style="color:#e6db74">&#39;FroD&#39;</span>]<span style="color:#f92672">.</span>append(np<span style="color:#f92672">.</span>linalg<span style="color:#f92672">.</span>norm(img <span style="color:#f92672">-</span> rec))
+        <span style="color:#75715e"># Save reconstruction to file</span>
+        rec <span style="color:#f92672">=</span> Image<span style="color:#f92672">.</span>fromarray(rec)
+        rec <span style="color:#f92672">=</span> ImageOps<span style="color:#f92672">.</span>grayscale(rec)
+        rec<span style="color:#f92672">.</span>save(out_file)
+
+df_og <span style="color:#f92672">=</span> pd<span style="color:#f92672">.</span>DataFrame(vals_og)
+df_rc <span style="color:#f92672">=</span> pd<span style="color:#f92672">.</span>DataFrame(vals_rc)
+        
+ax<span style="color:#f92672">.</span>set_ylim([<span style="color:#ae81ff">1e-4</span>, <span style="color:#ae81ff">1</span>])
+ax<span style="color:#f92672">.</span>set_title(<span style="color:#e6db74">&#39;Singular value spectrum&#39;</span>)
+ax<span style="color:#f92672">.</span>set_ylabel(<span style="color:#e6db74">&#39;Fraction of largest singular value&#39;</span>)
+ax<span style="color:#f92672">.</span>set_xlabel(<span style="color:#e6db74">&#39;Quantile of singular values&#39;</span>)
+ax<span style="color:#f92672">.</span>legend()
+plt<span style="color:#f92672">.</span>show()
+</code></pre></div><h3 id="results">Results</h3>
+<h4 id="spectra">Spectra</h4>
+<p>I would first like to look at some features of the original images.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">df_og
+</code></pre></div><div>
+<style scoped>
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+<pre><code>.dataframe tbody tr th {
+    vertical-align: top;
+}
+
+.dataframe thead th {
+    text-align: right;
+}
+</code></pre>
+<p></style></p>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>file</th>
+      <th>Nval</th>
+      <th>FroN</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>0</th>
+      <td>pictures/pic_1.png</td>
+      <td>836</td>
+      <td>219990.308432</td>
+    </tr>
+    <tr>
+      <th>1</th>
+      <td>pictures/pic_2.png</td>
+      <td>1768</td>
+      <td>293350.212546</td>
+    </tr>
+    <tr>
+      <th>2</th>
+      <td>pictures/pic_3.png</td>
+      <td>1887</td>
+      <td>250397.226442</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+<p>For each file, the <code>Nval</code> column the number singular of singular values used to
+decompose the original image, which is also the largest dimension of the image.
+Notably, <code>pic_1.png</code> has half as many singular values in the image as the
+other pictures because the image has half as many pixels in its largest dimension.
+Additionally, the <code>FroN</code> column computes the Frobenius norm of the image.
+On its own, the value doesn&rsquo;t mean much, but we will use it to normalize
+the Frobenius distance of reconstructions to compare for different images.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">df_rc[<span style="color:#e6db74">&#39;normFroD&#39;</span>] <span style="color:#f92672">=</span> df_rc<span style="color:#f92672">.</span>FroD <span style="color:#f92672">/</span> df_rc<span style="color:#f92672">.</span>file<span style="color:#f92672">.</span>replace(
+    { e : df_og<span style="color:#f92672">.</span>FroN[i] <span style="color:#66d9ef">for</span> i, e <span style="color:#f92672">in</span> enumerate(df_og<span style="color:#f92672">.</span>file) }
+)
+</code></pre></div><p>The next thing I would like to study is the plot of the SVD spectra.
+Since very few images contain a great deal of high frequency data,
+I will use logarithmic scales on the plot to focus on the first, largest
+singular values.
+Additionally, I will normalize the values by diving the values on each axis
+by the largest in each array so that we can compare spectra.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">plot()
+</code></pre></div><p><img src="images_files/images_9_0.png" alt="png"></p>
+<h4 id="reconstructions">Reconstructions</h4>
+<h5 id="pic_1png"><code>pic_1.png</code></h5>
+<p>Ordered from not compressed (left) to most compressed (right), the images are:</p>
+<div>
+<img src="pictures/pic_1.png" width="150"/>
+<img src="pictures/pic_1_out_k=-1.png" width="150"/>
+<img src="pictures/pic_1_out_k=-2.png" width="150"/>
+<img src="pictures/pic_1_out_k=-3.png" width="150"/>
+</div>
+<p>These reconstructions use the following parameters:</p>
+<ul>
+<li><code>expo</code>: The base-ten exponent representing the compression fraction</li>
+<li><code>Nrec</code>: The number of principal singular values used in the reconstruction</li>
+<li><code>FroD</code>: The Frobenius distance of the reconstruction from the original</li>
+<li><code>normFroD</code>: The value of <code>FroD</code> divided by <code>FroN</code> of the original image</li>
+</ul>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">df_rc[df_rc<span style="color:#f92672">.</span>file <span style="color:#f92672">==</span> <span style="color:#e6db74">&#39;pictures/pic_1.png&#39;</span>]
+</code></pre></div><div>
+<style scoped>
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+<pre><code>.dataframe tbody tr th {
+    vertical-align: top;
+}
+
+.dataframe thead th {
+    text-align: right;
+}
+</code></pre>
+<p></style></p>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>file</th>
+      <th>expo</th>
+      <th>Nrec</th>
+      <th>FroD</th>
+      <th>normFroD</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>0</th>
+      <td>pictures/pic_1.png</td>
+      <td>-3</td>
+      <td>1</td>
+      <td>32445.117391</td>
+      <td>0.147484</td>
+    </tr>
+    <tr>
+      <th>1</th>
+      <td>pictures/pic_1.png</td>
+      <td>-2</td>
+      <td>9</td>
+      <td>26717.258393</td>
+      <td>0.121447</td>
+    </tr>
+    <tr>
+      <th>2</th>
+      <td>pictures/pic_1.png</td>
+      <td>-1</td>
+      <td>84</td>
+      <td>12733.380540</td>
+      <td>0.057882</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+<h5 id="pic_2png"><code>pic_2.png</code></h5>
+<p>Ordered from not compressed (left) to most compressed (right), the images are:</p>
+<div>
+<img src="pictures/pic_2.png" width="150"/>
+<img src="pictures/pic_2_out_k=-1.png" width="150"/>
+<img src="pictures/pic_2_out_k=-2.png" width="150"/>
+<img src="pictures/pic_2_out_k=-3.png" width="150"/>
+</div>
+<p>These reconstructions use the following parameters:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">df_rc[df_rc<span style="color:#f92672">.</span>file <span style="color:#f92672">==</span> <span style="color:#e6db74">&#39;pictures/pic_2.png&#39;</span>]
+</code></pre></div><div>
+<style scoped>
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+<pre><code>.dataframe tbody tr th {
+    vertical-align: top;
+}
+
+.dataframe thead th {
+    text-align: right;
+}
+</code></pre>
+<p></style></p>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>file</th>
+      <th>expo</th>
+      <th>Nrec</th>
+      <th>FroD</th>
+      <th>normFroD</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>3</th>
+      <td>pictures/pic_2.png</td>
+      <td>-3</td>
+      <td>2</td>
+      <td>130700.350187</td>
+      <td>0.445544</td>
+    </tr>
+    <tr>
+      <th>4</th>
+      <td>pictures/pic_2.png</td>
+      <td>-2</td>
+      <td>18</td>
+      <td>104763.350022</td>
+      <td>0.357127</td>
+    </tr>
+    <tr>
+      <th>5</th>
+      <td>pictures/pic_2.png</td>
+      <td>-1</td>
+      <td>177</td>
+      <td>33092.120611</td>
+      <td>0.112808</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+<h5 id="pic_3png"><code>pic_3.png</code></h5>
+<p>Ordered from not compressed (left) to most compressed (right), the images are:</p>
+<div>
+<img src="pictures/pic_3.png" width="150"/>
+<img src="pictures/pic_3_out_k=-1.png" width="150"/>
+<img src="pictures/pic_3_out_k=-2.png" width="150"/>
+<img src="pictures/pic_3_out_k=-3.png" width="150"/>
+</div>
+<p>These reconstructions use the following parameters:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">df_rc[df_rc<span style="color:#f92672">.</span>file <span style="color:#f92672">==</span> <span style="color:#e6db74">&#39;pictures/pic_3.png&#39;</span>]
+</code></pre></div><div>
+<style scoped>
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+<pre><code>.dataframe tbody tr th {
+    vertical-align: top;
+}
+
+.dataframe thead th {
+    text-align: right;
+}
+</code></pre>
+<p></style></p>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>file</th>
+      <th>expo</th>
+      <th>Nrec</th>
+      <th>FroD</th>
+      <th>normFroD</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>6</th>
+      <td>pictures/pic_3.png</td>
+      <td>-3</td>
+      <td>2</td>
+      <td>130085.491407</td>
+      <td>0.519517</td>
+    </tr>
+    <tr>
+      <th>7</th>
+      <td>pictures/pic_3.png</td>
+      <td>-2</td>
+      <td>19</td>
+      <td>101196.911866</td>
+      <td>0.404145</td>
+    </tr>
+    <tr>
+      <th>8</th>
+      <td>pictures/pic_3.png</td>
+      <td>-1</td>
+      <td>189</td>
+      <td>32278.979956</td>
+      <td>0.128911</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+<h3 id="discussion">Discussion</h3>
+<h4 id="spectra-1">Spectra</h4>
+<p>It is interesting that <code>pic_1.png</code>, which is very text based, has a spectrum
+that decays fastest (we might expect it to struggle with text).
+Across all the spectra, it is clear that due to the logarithmic scale, for all
+the images, the largest 10% of singular values are in the first thousandth of
+all the singular values.
+Since the images are less than 2000 pixels each in their largest dimension, this
+means that only one or two singular values dominate.</p>
+<p>Then it appears there is a gradually sloping region until about between 1 and 10
+% of all singular values, which would suggest an informative region, followed by
+a dip into another sloping region until after 10%, whereupon all the spectra
+dive down to very small magnitudes.
+So my choice of reconstruction based on 0.1%, 1% and 10% of all singular values
+seems to capture each of the regions of interest.</p>
+<p>Notably, the spectra of <code>pic_2.png</code> and <code>pic_3.png</code> appear very similar, which
+seems reasonable because the images are of very similar quality and morphology.</p>
+<h4 id="reconstructions-1">Reconstructions</h4>
+<p>Starting with <code>pic_1.png</code>, we can see that the reconstruction with 1 singular
+value is extremely blurry, but at least it captures the lines of text in the
+image.
+In the reconstruction with 9 values, it is possible to discern blocks that look
+like words, but there is no chance of reading them as the features like serifs
+of the font are mangled by linear approximations.
+Lastly, the 10% reconstruction appears readable, though of very low quality.
+The page is grainy and hard to read for any extended period of time, but the
+text is there and not very different than a low-quality scan of a document,
+especially compared with a scanner on a cell phone.</p>
+<p>In the reconstruction of <code>pic_2.png</code> with 2 singular values, the image looks
+like a quilt.
+Already with 1% of the values, the reconstruction has recover the
+&ldquo;spaghetti and cheerios&rdquo; morphology of the structure, though lacks the detail
+and accuracy of the final image.
+The 10% reconstruction has lower quality than the original, but is rather close
+to the original and would be acceptable.</p>
+<p>In the reconstruction of <code>pic_3.png</code> with 2 singular values, we again have a
+quilt, but can see that the decomposition discerns the big black hole at the
+center of the image as well as the presence of the scale bar at the bottom of
+the photograph.
+We can continue to say similar things as the second image because the features
+of the images are quite similar.
+On a higher quality close-up of the image, it is interest to look at what
+happens inside the &ldquo;black hole&rdquo; at the center of the image.
+In the full image, it is nearly dark, but in all of the reconstructions, there
+is high-frequency noise that sort of imposes the ghostly shadow of the
+lamellar pattern in the dark area.
+Without the less emphasized singular values, it is impossible to remove the
+more subtle defects of the image.</p>
+<p>It is also striking to compare the normalized Frobenius distance across the
+images.
+In general, the errors are nearly a factor of 2 smaller for <code>pic_1.png</code> than
+<code>pic_2</code> or <code>pic_3</code>, which are comparable approximations at each level of
+reconstruction.
+Because I have normalized these errors, I suspect the deviation is not due
+to the fact the first pictures has far fewer pixels to approximate, but
+because the norm doesn&rsquo;t care so much about the small details in the text.
+By comparison, some of the approximations that would be unacceptable for text
+are tolerable for the larger-scale patterns in the second and third pictures.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">
+</code></pre></div>
+
+
+      
+    </article>
+    
+  </div>
+
+        </div><footer>
+  <div class="container">
+    <p class="credits copyright">
+      <p class="credits theme-by">
+        <a href="https://lxvm.github.io/ph121c/">root</a>
+      </p>
+    </p>
+  </div>
+</footer>
+</body>
+</html>

@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en"><meta charset="utf-8" />
+
+  <title>Assignment 3: Part 1 - Lorenzo X. Van Muñoz</title>
+
+
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="stylesheet" href="https://lxvm.github.io/ph121c/css/latex.css" />
+<link rel="stylesheet" href="https://lxvm.github.io/ph121c/css/main.css" />
+<script>
+  MathJax = {
+    tex: {
+      inlineMath: [['$', '$'], ["\\(", "\\)"]]
+    }
+  };
+</script>
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<meta name="generator" content="Hugo 0.80.0" /><body>
+
+
+<header>
+  <div class="intro-header">
+    <div class="container">
+      <div class="asg3-heading">
+        
+          <h1>Assignment 3: Part 1</h1>
+        
+      </div>
+    </div>
+  </div>
+</header>
+
+        <div id="content">
+  <div class="container" role="main">
+    <article class="article" class="blog-post">
+      <div class="postmeta">
+        <span class="meta-post">
+  
+</span>
+
+      </div>
+      <br>
+      <h1 id="dynamical-eth">Dynamical ETH</h1>
+<p>$
+\require{physics}
+\def\bm{\boldsymbol}
+\def\indx{\sigma_1, \dots, \sigma_L}
+\def\ind{\tau_1, \dots, \tau_L}
+$</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">import</span> numpy <span style="color:#f92672">as</span> np
+<span style="color:#f92672">import</span> pandas <span style="color:#f92672">as</span> pd
+<span style="color:#f92672">from</span> scipy <span style="color:#f92672">import</span> optimize
+<span style="color:#f92672">import</span> matplotlib.pyplot <span style="color:#f92672">as</span> plt
+<span style="color:#f92672">%</span>matplotlib inline
+
+<span style="color:#f92672">from</span> ph121c_lxvm <span style="color:#f92672">import</span> models, data, tests, measure, tensor, basis
+</code></pre></div><p>The model we will study in this notebook is:
+$$
+H = \sum_{j=1}^L \sigma_j^z \sigma_{j+1}^z
+- h^x \sum_{j=1}^L \sigma_j^x
+- h^z \sum_{j=1}^L \sigma_j^z
+.
+$$
+We are interested in the fact that $h^z \neq 0$ makes this
+TFIM Hamiltonian non-integrable, and creates eigenstate thermalization.
+We set the following generic parameter values:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">hx, hz <span style="color:#f92672">=</span> (<span style="color:#f92672">-</span><span style="color:#ae81ff">1.05</span>, <span style="color:#ae81ff">0.5</span>)
+</code></pre></div><h2 id="time-evolution-of-an-initial-state">Time evolution of an initial state</h2>
+<p>Our initial state will be
+$$
+\ket{\psi (t=0)} = \ket{\xi}_1 \otimes \cdots \otimes \ket{\xi}_L
+,
+$$
+with $\ket{\xi} = \frac{1}{2} \left( \ket{\uparrow} - \sqrt{3} \ket{\downarrow}\right)$.
+It is a translation-invariant state because</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">xi <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>array([<span style="color:#f92672">-</span>np<span style="color:#f92672">.</span>sqrt(<span style="color:#ae81ff">3</span>), <span style="color:#ae81ff">1</span>]) <span style="color:#f92672">*</span> <span style="color:#ae81ff">0.5</span>
+</code></pre></div><h3 id="goal">Goal</h3>
+<p>We are interested in time-evolving this state, which we can do in the energy
+eigenbasis, where:
+$$
+\ket{\psi}
+= \sum_{\indx=0}^{1} a_{\indx} \ket{\indx}
+= \sum_{n=1}^{2^L} c_n \ket{n}
+,
+$$
+where $c_n = \sum_{\indx} a_n \braket{n}{\indx}$.
+For brevity, let us replace the index $\indx$ of the computational basis with $i$,
+which we think of as a binary number.
+The time evolution of an operator in the energy basis, where
+$H \ket{n} = \epsilon_n \ket{n}$, can be described by:
+$$
+\ev{O}{\psi(t)}
+= \sum_{n, m} c_m^* c_n e^{-i(\epsilon_n - \epsilon_m)t} \mel{m}{O}{n}
+.
+$$</p>
+<p>Shu Fay told me it took hours to run code to do this, so I decided I would
+think about how to cast the problem efficiently.
+We could represent the sum above as the sum of the entries of a matrix in the
+energy basis, where initially each element is $c_m^* c_n \mel{m}{O}{n}$ and
+we update this at each time step of duration $\Delta t$ by multiplying with
+$e^{-i(\epsilon_n - \epsilon_m)\Delta t}$. We would find that each time step
+incurs $2^{2L}$ multiplications followed by summing $2^{2L}$ elements together.
+This is a fine way of doing the problem.</p>
+<p>I wanted to use the fact we know the Pauli operators very well in the computational
+basis. In fact, we know that they have precisely $2^L$ nonzero elements, and we
+can calculate these elements with bitwise operations. We can use resolution of
+the identity to write:
+\begin{align}
+\ev{O}{\psi(t)}
+&amp;= \sum_{i=0}^{2^L-1} \sum_{j=0}^{2^L-1} \sum_{n, m}
+c_m^* c_n e^{-i(\epsilon_n - \epsilon_m)t}
+\braket{m}{\indx}\mel{i}{O}{j}\braket{j}{n}
+\\<br>
+&amp;= \sum_{i=0}^{2^L-1} \sum_{j=0}^{2^L-1} \mel{i}{O}{j}
+\left( \sum_{n} c_n e^{-i\epsilon_n t} \braket{j}{n} \right)
+\left( \sum_{m} c_m e^{-i\epsilon_m t} \braket{i}{m} \right)^*
+.
+\end{align}
+For $O = \sigma_k^\mu$ where $k \in {1, \dots, L }$ and $\mu \in {x, y, z}$,
+we have binary formulas acting on site $k, k-1, k+1$ that give us the matrix
+elements $\mel{i}{O}{j}$. In fact, we know $j$ to be a function of
+$i$, so we will write $j(i) = i$.
+Therefore we have succesfully eliminated one of the indices:
+\begin{align}
+\ev{O}{\psi(t)}
+&amp;= \sum_{i} \mel{i}{O}{j(i)}
+\left( \sum_{n} c_n e^{-i\epsilon_n t} \braket{j(i)}{n} \right)
+\left( \sum_{m} c_m e^{-i\epsilon_m t} \braket{i}{m} \right)^*
+.
+\end{align}
+This means that when $j(i) = i$ which is true for diagonal operators
+such as $\sigma_k^z$, we can also limit the complexity of the problem to $2^{2L}$
+sums and multiplications, without ever having to change basis.
+Note that in this case, $\braket{i}{m}$ is just a matrix element of one of
+the eigenvectors returned by the diagonalization routine.</p>
+<h3 id="implementation">Implementation</h3>
+<p>I wrote code to do this time evolution in Fortran, and basically it does a loop
+over the physical index and the inner indices are just sums over vectors.
+I used OpenMP directives to speed the loop over the $\indx$ index in my Fortran
+code which cut the runtime in half compared to the serial version. 4 threads fastest.</p>
+<p>In short, time evolution on a temporal grid is a computationally intensive task.
+I expect this to take a long time to run, so I will make sure to save the results.
+After all, it did take me 4 tries before <code>np.linalg.eigh</code> didn&rsquo;t get itself
+killed due to requesting too much memory at $L=14$. When it did work, then
+$L=14$ took about 10 minutes to diagonalize (<code>numpy</code> says it uses the <code>syevd</code>
+routine from LAPACK, but back in assignment 1, I used the generic <code>syev</code> routine
+from MKL LAPACK and $L=14$ only took 2 minutes there).
+All of the diagonalization runtime information lives in the metadata of my HDF5
+archive, but I&rsquo;m too slow to get it out. All I know is that my appendix to
+assignment 2 demonstrates the code to talk with the archive.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">%%</span>time
+
+dt <span style="color:#f92672">=</span> <span style="color:#ae81ff">0.05</span>
+Nstp <span style="color:#f92672">=</span> <span style="color:#ae81ff">1000</span>
+bc <span style="color:#f92672">=</span> <span style="color:#e6db74">&#39;c&#39;</span>
+
+save <span style="color:#f92672">=</span> <span style="color:#e6db74">&#39;../../data/wobbles.pick&#39;</span>
+
+<span style="color:#66d9ef">try</span>:
+    df <span style="color:#f92672">=</span> pd<span style="color:#f92672">.</span>read_pickle(save)
+<span style="color:#66d9ef">except</span> FileNotFoundError:
+
+    wobbles <span style="color:#f92672">=</span> {
+        <span style="color:#e6db74">&#39;Pauli&#39;</span> : [],
+        <span style="color:#e6db74">&#39;vals&#39;</span> : [],
+        <span style="color:#e6db74">&#39;L&#39;</span> : [],
+    }
+
+    <span style="color:#66d9ef">for</span> L <span style="color:#f92672">in</span> [<span style="color:#ae81ff">8</span>, <span style="color:#ae81ff">10</span>, <span style="color:#ae81ff">12</span>, <span style="color:#ae81ff">14</span>]:
+
+        job <span style="color:#f92672">=</span> dict(
+            oper<span style="color:#f92672">=</span>models<span style="color:#f92672">.</span>tfim_z<span style="color:#f92672">.</span>H_dense,
+            oper_params<span style="color:#f92672">=</span>{
+                <span style="color:#e6db74">&#39;L&#39;</span> : L,
+                <span style="color:#e6db74">&#39;h&#39;</span> : hx,
+                <span style="color:#e6db74">&#39;hz&#39;</span>: hz,
+                <span style="color:#e6db74">&#39;bc&#39;</span>: bc,
+            },
+            solver<span style="color:#f92672">=</span>np<span style="color:#f92672">.</span>linalg<span style="color:#f92672">.</span>eigh,
+            solver_params<span style="color:#f92672">=</span>{},
+        )
+        evals, evecs <span style="color:#f92672">=</span> data<span style="color:#f92672">.</span>jobs<span style="color:#f92672">.</span>obtain(<span style="color:#f92672">**</span>job)
+        <span style="color:#75715e"># Build initial state</span>
+        psi <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>
+        <span style="color:#66d9ef">for</span> i <span style="color:#f92672">in</span> range(L):
+            psi <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>kron(xi, psi)
+        <span style="color:#75715e"># Decompose in energy basis</span>
+        coef <span style="color:#f92672">=</span> evecs<span style="color:#f92672">.</span>T <span style="color:#960050;background-color:#1e0010">@</span> psi
+        <span style="color:#75715e"># Measure 1-site Pauli observables</span>
+        <span style="color:#66d9ef">for</span> which <span style="color:#f92672">in</span> [<span style="color:#e6db74">&#39;x&#39;</span>, <span style="color:#e6db74">&#39;y&#39;</span>, <span style="color:#e6db74">&#39;z&#39;</span>]:
+            cevecs <span style="color:#f92672">=</span> (coef <span style="color:#f92672">*</span> evecs)<span style="color:#f92672">.</span>T<span style="color:#f92672">.</span>astype(<span style="color:#e6db74">&#39;complex&#39;</span>)
+            tevals <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>exp(<span style="color:#f92672">-</span><span style="color:#ae81ff">1j</span><span style="color:#f92672">*</span>dt<span style="color:#f92672">*</span>evals)
+            wobbles[<span style="color:#e6db74">&#39;L&#39;</span>]<span style="color:#f92672">.</span>append(L)
+            wobbles[<span style="color:#e6db74">&#39;Pauli&#39;</span>]<span style="color:#f92672">.</span>append(which)
+            wobbles[<span style="color:#e6db74">&#39;vals&#39;</span>]<span style="color:#f92672">.</span>append(
+                measure<span style="color:#f92672">.</span>evolve<span style="color:#f92672">.</span>Pauli_ev(
+                    L<span style="color:#f92672">=</span>L, Nstp<span style="color:#f92672">=</span>Nstp, which<span style="color:#f92672">=</span>which, cevecs<span style="color:#f92672">=</span>cevecs, tevals<span style="color:#f92672">=</span>tevals,
+                    num_threads<span style="color:#f92672">=</span><span style="color:#ae81ff">4</span>
+                )
+            )
+
+    df <span style="color:#f92672">=</span> pd<span style="color:#f92672">.</span>DataFrame(wobbles)
+    df<span style="color:#f92672">.</span>to_pickle(save)
+</code></pre></div><pre><code>CPU times: user 2.96 ms, sys: 0 ns, total: 2.96 ms
+Wall time: 5.13 ms
+</code></pre>
+<h3 id="fast-time-slow-time">Fast time, slow time</h3>
+<p>I think I&rsquo;ve been here for about 30 minutes, so let&rsquo;s just say that&rsquo;s the time
+it took to generate all 12 time evolutions (The diagonalization was done previously).</p>
+<p>In this case, I ran the code in three separate chunks, and the last runtime was
+for $L=14$ and <code>which = 'y'</code>:</p>
+<pre><code>CPU times: user 1h 41min 23s, sys: 11.4 s, total: 1h 41min 35s
+Wall time: 8min 41s
+</code></pre><p>Of that time, $L=12$ took about 30-40 seconds each, so every $L=14$ evolution
+took about 10 minutes.</p>
+<p>Update: after tuning threads, the same code ran faster:</p>
+<pre><code>CPU times: user 22min 25s, sys: 931 ms, total: 22min 26s
+Wall time: 5min 36s
+</code></pre><p>I wish I did it right the first time!</p>
+<h3 id="results">Results</h3>
+<p>Let&rsquo;s display how these expectation values evolve in time, as a function of $L$
+and the operator. All the data were iterated 1000 steps at a step size of 0.05.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">nrow <span style="color:#f92672">=</span> <span style="color:#ae81ff">4</span>
+ncol <span style="color:#f92672">=</span> <span style="color:#ae81ff">3</span>
+fig, axes <span style="color:#f92672">=</span> plt<span style="color:#f92672">.</span>subplots(nrow, ncol)
+<span style="color:#66d9ef">for</span> i, row <span style="color:#f92672">in</span> enumerate(axes):
+    <span style="color:#66d9ef">for</span> j, ax <span style="color:#f92672">in</span> enumerate(row):
+        ax<span style="color:#f92672">.</span>plot(np<span style="color:#f92672">.</span>arange(Nstp)<span style="color:#f92672">*</span>dt, df<span style="color:#f92672">.</span>vals[i<span style="color:#f92672">*</span>ncol <span style="color:#f92672">+</span> j])
+        ax<span style="color:#f92672">.</span>set_title(f<span style="color:#e6db74">&#34;$\sigma_0^{df[&#39;Pauli&#39;][i*ncol + j]}, L={df.L[i*ncol + j]}$&#34;</span>)
+        ax<span style="color:#f92672">.</span>set_xlabel(<span style="color:#e6db74">&#39;t&#39;</span>)
+        ax<span style="color:#f92672">.</span>set_ylabel(f<span style="color:#e6db74">&#34;$</span><span style="color:#ae81ff">\\</span><span style="color:#e6db74">langle \sigma_0^{df[&#39;Pauli&#39;][i*ncol + j]} (t) </span><span style="color:#ae81ff">\\</span><span style="color:#e6db74">rangle$&#34;</span>)
+fig<span style="color:#f92672">.</span>set_size_inches(<span style="color:#ae81ff">9</span>, <span style="color:#ae81ff">9</span>)
+fig<span style="color:#f92672">.</span>tight_layout()
+plt<span style="color:#f92672">.</span>show()
+</code></pre></div><p><img src="output_11_0.png" alt="png"></p>
+<p>It is interesting to see how as $L$ grows, the expectation values appear to
+contract in the amplitude of oscillation near $t=30$. At longer times, these
+values appear to grow again, as though some large-scale interference pattern
+manifests itself across the system.
+The presence of this slight contraction is a signature of the thermalization
+of this expectation value at large $L$. While the amplitude at low $L$ appears
+constant throughout the observation period, the larger system offers more states
+over which the exponentials that propagate the solution in time can decohere,
+leading to greater reductions in oscillation amplitude.</p>
+<h2 id="thermal-values-of-observables">Thermal values of observables</h2>
+<p>Let&rsquo;s dive into canonical ensemble:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">%%</span>time
+
+zzz <span style="color:#f92672">=</span> <span style="color:#66d9ef">lambda</span> x: np<span style="color:#f92672">.</span>exp(<span style="color:#f92672">-</span>x <span style="color:#f92672">*</span> evals)
+zz  <span style="color:#f92672">=</span> <span style="color:#66d9ef">lambda</span> x: sum(evals <span style="color:#f92672">*</span> zzz(x))
+z   <span style="color:#f92672">=</span> <span style="color:#66d9ef">lambda</span> x: sum(zzz(x))
+
+bc <span style="color:#f92672">=</span> <span style="color:#e6db74">&#39;c&#39;</span>
+
+graphs <span style="color:#f92672">=</span> [<span style="color:#ae81ff">8</span>, <span style="color:#ae81ff">10</span>, <span style="color:#ae81ff">12</span>, <span style="color:#ae81ff">14</span>]
+energies <span style="color:#f92672">=</span> []
+roots <span style="color:#f92672">=</span> []
+betas <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>arange(<span style="color:#ae81ff">20</span>) <span style="color:#f92672">*</span> <span style="color:#f92672">.</span><span style="color:#ae81ff">1</span> <span style="color:#f92672">+</span> <span style="color:#f92672">.</span><span style="color:#ae81ff">1</span>
+
+nrow <span style="color:#f92672">=</span> <span style="color:#ae81ff">2</span>
+ncol <span style="color:#f92672">=</span> <span style="color:#ae81ff">2</span>
+
+fig, axes <span style="color:#f92672">=</span> plt<span style="color:#f92672">.</span>subplots(nrow, ncol, sharex<span style="color:#f92672">=</span>True)
+
+<span style="color:#66d9ef">for</span> i, row <span style="color:#f92672">in</span> enumerate(axes):
+    <span style="color:#66d9ef">for</span> j, ax <span style="color:#f92672">in</span> enumerate(row):
+        job <span style="color:#f92672">=</span> dict(
+            oper<span style="color:#f92672">=</span>models<span style="color:#f92672">.</span>tfim_z<span style="color:#f92672">.</span>H_dense,
+            oper_params<span style="color:#f92672">=</span>{
+                <span style="color:#e6db74">&#39;L&#39;</span> : graphs[i<span style="color:#f92672">*</span>ncol <span style="color:#f92672">+</span> j],
+                <span style="color:#e6db74">&#39;h&#39;</span> : hx,
+                <span style="color:#e6db74">&#39;hz&#39;</span>: hz,
+                <span style="color:#e6db74">&#39;bc&#39;</span>: bc,
+            },
+            solver<span style="color:#f92672">=</span>np<span style="color:#f92672">.</span>linalg<span style="color:#f92672">.</span>eigh,
+            solver_params<span style="color:#f92672">=</span>{},
+        )
+        evals, _ <span style="color:#f92672">=</span> data<span style="color:#f92672">.</span>jobs<span style="color:#f92672">.</span>obtain(<span style="color:#f92672">**</span>job)
+        <span style="color:#75715e"># Build inital state</span>
+        psi <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>
+        <span style="color:#66d9ef">for</span> _ <span style="color:#f92672">in</span> range(graphs[i<span style="color:#f92672">*</span>ncol <span style="color:#f92672">+</span> j]):
+            psi <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>kron(xi, psi)
+        <span style="color:#66d9ef">assert</span> np<span style="color:#f92672">.</span>allclose(np<span style="color:#f92672">.</span>linalg<span style="color:#f92672">.</span>norm(psi), <span style="color:#ae81ff">1</span>)
+        energies<span style="color:#f92672">.</span>append(
+            np<span style="color:#f92672">.</span>inner(psi, models<span style="color:#f92672">.</span>tfim_z<span style="color:#f92672">.</span>H_vec(psi, graphs[i<span style="color:#f92672">*</span>ncol <span style="color:#f92672">+</span> j], hx, bc, hz))
+        )
+        <span style="color:#75715e"># Plot beta vs energy</span>
+        ax<span style="color:#f92672">.</span>plot(
+            betas, [ zz(e) <span style="color:#f92672">/</span> z(e) <span style="color:#66d9ef">for</span> e <span style="color:#f92672">in</span> betas ],
+            label<span style="color:#f92672">=</span>f<span style="color:#e6db74">&#39;$E_</span><span style="color:#ae81ff">\\</span><span style="color:#e6db74">beta$&#39;</span>,
+        )
+        ax<span style="color:#f92672">.</span>axhline(
+            y<span style="color:#f92672">=</span>energies[<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>], xmin<span style="color:#f92672">=</span><span style="color:#ae81ff">0</span>, xmax<span style="color:#f92672">=</span>max(betas),
+           label<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;$</span><span style="color:#ae81ff">\\</span><span style="color:#e6db74">langle </span><span style="color:#ae81ff">\\</span><span style="color:#e6db74">psi </span><span style="color:#ae81ff">\\</span><span style="color:#e6db74">mid H </span><span style="color:#ae81ff">\\</span><span style="color:#e6db74">mid </span><span style="color:#ae81ff">\\</span><span style="color:#e6db74">psi </span><span style="color:#ae81ff">\\</span><span style="color:#e6db74">rangle$&#39;</span>
+        )
+        ax<span style="color:#f92672">.</span>set_title(f<span style="color:#e6db74">&#39;$L={graphs[i*ncol + j]}$&#39;</span>)
+        ax<span style="color:#f92672">.</span>set_xlabel(<span style="color:#e6db74">&#39;$ </span><span style="color:#ae81ff">\\</span><span style="color:#e6db74">beta $&#39;</span>)
+        ax<span style="color:#f92672">.</span>set_ylabel(<span style="color:#e6db74">&#39;$E$&#39;</span>)
+        ax<span style="color:#f92672">.</span>legend()
+        <span style="color:#75715e"># Find which beta gives energy of psi</span>
+        roots<span style="color:#f92672">.</span>append(
+            optimize<span style="color:#f92672">.</span>root_scalar(
+                <span style="color:#66d9ef">lambda</span> x: zz(x) <span style="color:#f92672">/</span> z(x) <span style="color:#f92672">-</span> energies[<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>],
+                bracket<span style="color:#f92672">=</span>[<span style="color:#ae81ff">0.1</span>, <span style="color:#ae81ff">1</span>], method<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;brentq&#39;</span>
+            )<span style="color:#f92672">.</span>root
+        )
+fig<span style="color:#f92672">.</span>tight_layout()
+plt<span style="color:#f92672">.</span>show()
+</code></pre></div><p><img src="output_14_0.png" alt="png"></p>
+<pre><code>CPU times: user 1.9 s, sys: 977 ms, total: 2.88 s
+Wall time: 3.5 s
+</code></pre>
+<p>We found the inverse temperature corresponding to the energy of $\ket{\psi}$
+at various values of $L$ with <code>scipy's</code> rootfinder:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">from</span> pprint <span style="color:#f92672">import</span> pprint
+<span style="color:#66d9ef">print</span>(<span style="color:#e6db74">&#39;L,     beta,             Energy&#39;</span>)
+pprint(list(zip(graphs, roots, energies)))
+</code></pre></div><pre><code>L,     beta,             Energy
+[(8, 0.6467790651478237, -11.274613391789277),
+ (10, 0.6468465654548882, -14.0932667397366),
+ (12, 0.6468575448662777, -16.911920087683917),
+ (14, 0.6468593322518154, -19.73057343563123)]
+</code></pre>
+<p>Let&rsquo;s now build the thermal state with this energy and measure the observables
+in this time-independent state. We&rsquo;ll have to compute the observables
+$O \in {\sigma_0^x, \sigma_0^y, \sigma_0^z}$ in the energy basis or vice versa.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#960050;background-color:#1e0010">!</span>ulimit <span style="color:#f92672">-</span>s unlimited
+</code></pre></div><div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">%%</span>time
+
+observe <span style="color:#f92672">=</span> dict(x<span style="color:#f92672">=</span>[], y<span style="color:#f92672">=</span>[], z<span style="color:#f92672">=</span>[])
+
+<span style="color:#66d9ef">for</span> i, L <span style="color:#f92672">in</span> enumerate(graphs):
+    job <span style="color:#f92672">=</span> dict(
+        oper<span style="color:#f92672">=</span>models<span style="color:#f92672">.</span>tfim_z<span style="color:#f92672">.</span>H_dense,
+        oper_params<span style="color:#f92672">=</span>{
+            <span style="color:#e6db74">&#39;L&#39;</span> : L,
+            <span style="color:#e6db74">&#39;h&#39;</span> : hx,
+            <span style="color:#e6db74">&#39;hz&#39;</span>: hz,
+            <span style="color:#e6db74">&#39;bc&#39;</span>: bc,
+        },
+        solver<span style="color:#f92672">=</span>np<span style="color:#f92672">.</span>linalg<span style="color:#f92672">.</span>eigh,
+        solver_params<span style="color:#f92672">=</span>{},
+    )
+    evals, evecs <span style="color:#f92672">=</span> data<span style="color:#f92672">.</span>jobs<span style="color:#f92672">.</span>obtain(<span style="color:#f92672">**</span>job)
+    therm <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>exp(<span style="color:#f92672">-</span>roots[i] <span style="color:#f92672">*</span> evals)
+    therm <span style="color:#f92672">=</span> therm <span style="color:#f92672">/</span> sum(therm)
+    <span style="color:#75715e"># Normalize!</span>
+    therm <span style="color:#f92672">=</span> therm <span style="color:#f92672">/</span> np<span style="color:#f92672">.</span>linalg<span style="color:#f92672">.</span>norm(therm)
+    
+    <span style="color:#66d9ef">for</span> which <span style="color:#f92672">in</span> [<span style="color:#e6db74">&#39;x&#39;</span>, <span style="color:#e6db74">&#39;y&#39;</span>, <span style="color:#e6db74">&#39;z&#39;</span>]:
+        cevecs <span style="color:#f92672">=</span> (therm <span style="color:#f92672">*</span> evecs)<span style="color:#f92672">.</span>T<span style="color:#f92672">.</span>astype(<span style="color:#e6db74">&#39;complex&#39;</span>)
+        tevals <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>zeros(<span style="color:#ae81ff">2</span> <span style="color:#f92672">**</span> L, dtype<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;complex&#39;</span>)
+        observe[which]<span style="color:#f92672">.</span>append(
+            measure<span style="color:#f92672">.</span>evolve<span style="color:#f92672">.</span>Pauli_ev(
+                L<span style="color:#f92672">=</span>L, Nstp<span style="color:#f92672">=</span><span style="color:#ae81ff">1</span>, which<span style="color:#f92672">=</span>which, cevecs<span style="color:#f92672">=</span>cevecs, tevals<span style="color:#f92672">=</span>tevals,
+                num_threads<span style="color:#f92672">=</span><span style="color:#ae81ff">4</span>
+            )
+        )
+
+</code></pre></div><pre><code>CPU times: user 8.84 s, sys: 8.49 s, total: 17.3 s
+Wall time: 11 s
+</code></pre>
+<p>It makes me happy I can use my Fortran code more than once!</p>
+<p>With values in hand we make the same plot as before to compare the stationary
+and thermalizing values:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">nrow <span style="color:#f92672">=</span> <span style="color:#ae81ff">4</span>
+ncol <span style="color:#f92672">=</span> <span style="color:#ae81ff">3</span>
+opers <span style="color:#f92672">=</span> [<span style="color:#e6db74">&#39;x&#39;</span>, <span style="color:#e6db74">&#39;y&#39;</span>, <span style="color:#e6db74">&#39;z&#39;</span>]
+fig, axes <span style="color:#f92672">=</span> plt<span style="color:#f92672">.</span>subplots(nrow, ncol)
+<span style="color:#66d9ef">for</span> i, row <span style="color:#f92672">in</span> enumerate(axes):
+    <span style="color:#66d9ef">for</span> j, ax <span style="color:#f92672">in</span> enumerate(row):
+        ax<span style="color:#f92672">.</span>plot(np<span style="color:#f92672">.</span>arange(Nstp)<span style="color:#f92672">*</span>dt, df<span style="color:#f92672">.</span>vals[i<span style="color:#f92672">*</span>ncol <span style="color:#f92672">+</span> j])
+        ax<span style="color:#f92672">.</span>axhline(observe[opers[j]][i])
+        ax<span style="color:#f92672">.</span>set_title(
+            f<span style="color:#e6db74">&#34;$\sigma_0^{df[&#39;Pauli&#39;][i*ncol + j]}, L={df.L[i*ncol + j]}$&#34;</span>
+        )
+        ax<span style="color:#f92672">.</span>set_xlabel(<span style="color:#e6db74">&#39;t&#39;</span>)
+        ax<span style="color:#f92672">.</span>set_ylabel(
+            f<span style="color:#e6db74">&#34;$</span><span style="color:#ae81ff">\\</span><span style="color:#e6db74">langle \sigma_0^{df[&#39;Pauli&#39;][i*ncol + j]} (t) </span><span style="color:#ae81ff">\\</span><span style="color:#e6db74">rangle$&#34;</span>
+        )
+fig<span style="color:#f92672">.</span>set_size_inches(<span style="color:#ae81ff">9</span>, <span style="color:#ae81ff">9</span>)
+fig<span style="color:#f92672">.</span>tight_layout()
+plt<span style="color:#f92672">.</span>show()
+</code></pre></div><p><img src="output_21_0.png" alt="png"></p>
+<p>The plots each display the thermal value as a horizontal line against the time-
+dependent trace.
+While $\sigma^y$ remains zero in the thermal state, because a purely real
+state will vanish in expectation under this traceless and skew-symmetric operator,
+we do observe that $\sigma^x$ remains close to its thermal value just as soon
+as it relaxes after a dozen oscillations.
+On the other hand, it seems like $\sigma^z$ undershoots its thermal value
+by about 25% for the observation period. It seems like the thermal value I
+calculated is larger than the $h^z = 0.5$ parameter, which is unlikely to
+produce the large correlations I&rsquo;m predicting. Let&rsquo;s agree that I made some
+mistake somewhere, or that the translation invariant state just is unable
+to access so high a correlation.</p>
+<p>At least for $\sigma^x$ and $\sigma^y$ we can see that for larger $L$, the
+time-dependent value narrows onto the thermal value faster.</p>
+<h2 id="entanglement-entropy-growth-with-time">Entanglement entropy growth with time</h2>
+<p>Let&rsquo;s propagate $\ket{\psi}$ as well as another another product state:
+$$
+\ket{\phi} = \ket{\omega}_1 \otimes \cdots \otimes \ket{\omega}_L
+\qquad \ket{\omega} = \frac{1}{\sqrt{e^2 + \pi^2}}
+\left( e \ket{\uparrow} - \pi \ket{\downarrow} \right)
+$$
+where $e$ is Euler&rsquo;s number.
+We&rsquo;ll propagate this state in time directly and measure the half-system
+entanglement entropy.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">%%</span>time
+
+om <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>array([<span style="color:#f92672">-</span>np<span style="color:#f92672">.</span>pi, np<span style="color:#f92672">.</span>e]) <span style="color:#f92672">/</span> np<span style="color:#f92672">.</span>sqrt(np<span style="color:#f92672">.</span>e <span style="color:#f92672">**</span> <span style="color:#ae81ff">2</span> <span style="color:#f92672">+</span> np<span style="color:#f92672">.</span>pi <span style="color:#f92672">**</span> <span style="color:#ae81ff">2</span>)
+
+entropx <span style="color:#f92672">=</span> dict(L<span style="color:#f92672">=</span>[], t<span style="color:#f92672">=</span>[], psi<span style="color:#f92672">=</span>[], phi<span style="color:#f92672">=</span>[])
+
+dt <span style="color:#f92672">=</span> <span style="color:#ae81ff">0.1</span>
+Nstp <span style="color:#f92672">=</span> <span style="color:#ae81ff">60</span>
+
+<span style="color:#66d9ef">for</span> i, L <span style="color:#f92672">in</span> enumerate(graphs):
+    job <span style="color:#f92672">=</span> dict(
+        oper<span style="color:#f92672">=</span>models<span style="color:#f92672">.</span>tfim_z<span style="color:#f92672">.</span>H_dense,
+        oper_params<span style="color:#f92672">=</span>{
+            <span style="color:#e6db74">&#39;L&#39;</span> : L,
+            <span style="color:#e6db74">&#39;h&#39;</span> : hx,
+            <span style="color:#e6db74">&#39;hz&#39;</span>: hz,
+            <span style="color:#e6db74">&#39;bc&#39;</span>: bc,
+        },
+        solver<span style="color:#f92672">=</span>np<span style="color:#f92672">.</span>linalg<span style="color:#f92672">.</span>eigh,
+        solver_params<span style="color:#f92672">=</span>{},
+    )
+    evals, evecs <span style="color:#f92672">=</span> data<span style="color:#f92672">.</span>jobs<span style="color:#f92672">.</span>obtain(<span style="color:#f92672">**</span>job)
+    tevals <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>exp(<span style="color:#f92672">-</span><span style="color:#ae81ff">1j</span> <span style="color:#f92672">*</span> evals <span style="color:#f92672">*</span> dt)
+    <span style="color:#75715e"># Build inital state</span>
+    psi <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>
+    phi <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>
+    <span style="color:#66d9ef">for</span> _ <span style="color:#f92672">in</span> range(L):
+        psi <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>kron(xi, psi)
+        phi <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>kron(om, phi)
+    <span style="color:#66d9ef">assert</span> np<span style="color:#f92672">.</span>allclose(np<span style="color:#f92672">.</span>linalg<span style="color:#f92672">.</span>norm(psi), <span style="color:#ae81ff">1</span>)
+    <span style="color:#66d9ef">assert</span> np<span style="color:#f92672">.</span>allclose(np<span style="color:#f92672">.</span>linalg<span style="color:#f92672">.</span>norm(phi), <span style="color:#ae81ff">1</span>)
+    <span style="color:#75715e"># change to energy basis</span>
+    psi <span style="color:#f92672">=</span> evecs<span style="color:#f92672">.</span>T <span style="color:#960050;background-color:#1e0010">@</span> psi
+    phi <span style="color:#f92672">=</span> evecs<span style="color:#f92672">.</span>T <span style="color:#960050;background-color:#1e0010">@</span> phi
+    <span style="color:#66d9ef">for</span> j <span style="color:#f92672">in</span> range(Nstp):
+        <span style="color:#75715e"># measure</span>
+        entropx[<span style="color:#e6db74">&#39;L&#39;</span>]<span style="color:#f92672">.</span>append(L)
+        entropx[<span style="color:#e6db74">&#39;t&#39;</span>]<span style="color:#f92672">.</span>append(j<span style="color:#f92672">*</span>dt)
+        entropx[<span style="color:#e6db74">&#39;psi&#39;</span>]<span style="color:#f92672">.</span>append(
+            measure<span style="color:#f92672">.</span>entropy<span style="color:#f92672">.</span>entanglement(basis<span style="color:#f92672">.</span>schmidt<span style="color:#f92672">.</span>values(
+                    evecs <span style="color:#960050;background-color:#1e0010">@</span> psi, np<span style="color:#f92672">.</span>arange(L <span style="color:#f92672">//</span> <span style="color:#ae81ff">2</span>), L
+                ))
+        )
+        entropx[<span style="color:#e6db74">&#39;phi&#39;</span>]<span style="color:#f92672">.</span>append(
+            measure<span style="color:#f92672">.</span>entropy<span style="color:#f92672">.</span>entanglement(basis<span style="color:#f92672">.</span>schmidt<span style="color:#f92672">.</span>values(
+                    evecs <span style="color:#960050;background-color:#1e0010">@</span> phi, np<span style="color:#f92672">.</span>arange(L <span style="color:#f92672">//</span> <span style="color:#ae81ff">2</span>), L
+                ))
+        )
+        <span style="color:#75715e"># propagate</span>
+        psi <span style="color:#f92672">=</span> tevals <span style="color:#f92672">*</span> psi
+        phi <span style="color:#f92672">=</span> tevals <span style="color:#f92672">*</span> phi
+    
+df <span style="color:#f92672">=</span> pd<span style="color:#f92672">.</span>DataFrame(entropx)
+</code></pre></div><pre><code>CPU times: user 3min 14s, sys: 1min 12s, total: 4min 27s
+Wall time: 2min 1s
+</code></pre>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">fig, axes <span style="color:#f92672">=</span> plt<span style="color:#f92672">.</span>subplots(<span style="color:#ae81ff">1</span>, <span style="color:#ae81ff">2</span>, sharey<span style="color:#f92672">=</span>True)
+<span style="color:#66d9ef">for</span> i, L <span style="color:#f92672">in</span> enumerate(graphs):
+    <span style="color:#75715e"># psi</span>
+    axes[<span style="color:#ae81ff">0</span>]<span style="color:#f92672">.</span>plot(
+        df<span style="color:#f92672">.</span>t[df<span style="color:#f92672">.</span>L <span style="color:#f92672">==</span> L]<span style="color:#f92672">.</span>values,
+        df<span style="color:#f92672">.</span>psi[df<span style="color:#f92672">.</span>L <span style="color:#f92672">==</span> L]<span style="color:#f92672">.</span>values <span style="color:#f92672">/</span> L,
+        label<span style="color:#f92672">=</span>f<span style="color:#e6db74">&#39;$L={L}$&#39;</span>
+    )
+    axes[<span style="color:#ae81ff">0</span>]<span style="color:#f92672">.</span>set_title(<span style="color:#e6db74">&#39;$</span><span style="color:#ae81ff">\\</span><span style="color:#e6db74">psi$&#39;</span>)
+    axes[<span style="color:#ae81ff">0</span>]<span style="color:#f92672">.</span>set_xlabel(<span style="color:#e6db74">&#39;$t$&#39;</span>)
+    axes[<span style="color:#ae81ff">0</span>]<span style="color:#f92672">.</span>set_ylabel(<span style="color:#e6db74">&#39;$S_{L/2}/L$&#39;</span>)
+    axes[<span style="color:#ae81ff">0</span>]<span style="color:#f92672">.</span>legend()
+    <span style="color:#75715e"># phi</span>
+    axes[<span style="color:#ae81ff">1</span>]<span style="color:#f92672">.</span>plot(
+        df<span style="color:#f92672">.</span>t[df<span style="color:#f92672">.</span>L <span style="color:#f92672">==</span> L]<span style="color:#f92672">.</span>values,
+        df<span style="color:#f92672">.</span>phi[df<span style="color:#f92672">.</span>L <span style="color:#f92672">==</span> L]<span style="color:#f92672">.</span>values <span style="color:#f92672">/</span> L,
+        label<span style="color:#f92672">=</span>f<span style="color:#e6db74">&#39;$L={L}$&#39;</span>
+    )
+    axes[<span style="color:#ae81ff">1</span>]<span style="color:#f92672">.</span>set_title(<span style="color:#e6db74">&#39;$</span><span style="color:#ae81ff">\\</span><span style="color:#e6db74">phi$&#39;</span>)
+    axes[<span style="color:#ae81ff">1</span>]<span style="color:#f92672">.</span>set_xlabel(<span style="color:#e6db74">&#39;$t$&#39;</span>)
+    axes[<span style="color:#ae81ff">1</span>]<span style="color:#f92672">.</span>legend()
+</code></pre></div><p><img src="output_25_0.png" alt="png"></p>
+<p>Indeed, no accidents here. Both states show increasing entanglement entropy
+over time, which when normalized by the system length leads to a fairly
+interesting set of characteristic curves.
+Since all the curves don&rsquo;t quite collapse onto each, we conclude that, the entropy
+isn&rsquo;t some scale-invariant quantity, though all the normalized entropies are
+in the same region and show similar dynamics.</p>
+<p>However, we do have to notice that the the entropy of $\ket{\phi}$ is twice as
+large as that of $\ket{\psi}$. Perhaps this is due to the transcendental choice
+of coefficients.</p>
+<p>At early times, the product state has no entanglement entropy, but as time goes
+on, the entropy increases rapidly until it plateaus.
+Interestingly, in this plateau region, the entropy dips with some periodicity.
+A scar state, maybe?</p>
+<p>In short, lots of entropy means we won&rsquo;t be able to use MPS for these states.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">
+</code></pre></div>
+
+
+      
+    </article>
+    
+  </div>
+
+        </div><footer>
+  <div class="container">
+    <p class="credits copyright">
+      <p class="credits theme-by">
+        <a href="https://lxvm.github.io/ph121c/">root</a>
+      </p>
+    </p>
+  </div>
+</footer>
+</body>
+</html>

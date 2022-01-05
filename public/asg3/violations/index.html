@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en"><meta charset="utf-8" />
+
+  <title>Assignment 3: Part 3 - Lorenzo X. Van Muñoz</title>
+
+
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="stylesheet" href="https://lxvm.github.io/ph121c/css/latex.css" />
+<link rel="stylesheet" href="https://lxvm.github.io/ph121c/css/main.css" />
+<script>
+  MathJax = {
+    tex: {
+      inlineMath: [['$', '$'], ["\\(", "\\)"]]
+    }
+  };
+</script>
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<meta name="generator" content="Hugo 0.80.0" /><body>
+
+
+<header>
+  <div class="intro-header">
+    <div class="container">
+      <div class="asg3-heading">
+        
+          <h1>Assignment 3: Part 3</h1>
+        
+      </div>
+    </div>
+  </div>
+</header>
+
+        <div id="content">
+  <div class="container" role="main">
+    <article class="article" class="blog-post">
+      <div class="postmeta">
+        <span class="meta-post">
+  
+</span>
+
+      </div>
+      <br>
+      <h1 id="violations-of-eth">Violations of ETH</h1>
+<p>$
+\require{physics}
+\def\bm{\boldsymbol}
+$</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">from</span> itertools <span style="color:#f92672">import</span> product
+
+<span style="color:#f92672">import</span> numpy <span style="color:#f92672">as</span> np
+<span style="color:#f92672">import</span> pandas <span style="color:#f92672">as</span> pd
+<span style="color:#f92672">from</span> scipy <span style="color:#f92672">import</span> optimize
+<span style="color:#f92672">import</span> matplotlib.pyplot <span style="color:#f92672">as</span> plt
+<span style="color:#f92672">%</span>matplotlib inline
+
+<span style="color:#f92672">from</span> ph121c_lxvm <span style="color:#f92672">import</span> models, data, basis, measure
+</code></pre></div><h2 id="many-body-localized-model">Many-body localized model</h2>
+<p>We introduce disorder to the model we have used before by allowing random
+coefficients:
+$$
+H = \sum_{j=1}^L \sigma_j^z \sigma_{j+1}^z
+- \sum_{j=1}^L h_j^x \sigma_j^x
+- \sum_{j=1}^L h_j^z \sigma_j^z
+.
+$$
+The random coefficients $h_j^x$ and $h_j^z$ are sampled uniformly from $[W, W]$,
+where the magnitude of $W$ determines the strength of the random noise.
+This model may introduce localization of the quantum state, where the random
+noise causes the probability mass to focus on some sites in the chain.</p>
+<h3 id="repeating-dynamical-eth-experiments">Repeating dynamical ETH experiments</h3>
+<p>Here we&rsquo;re just going to repeat a lot of the code from before to create the
+same graphics</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">%%</span>time
+<span style="color:#75715e"># Def variables and time evolve expectation values</span>
+save <span style="color:#f92672">=</span> <span style="color:#e6db74">&#39;../../data/randoms.pick&#39;</span>
+xi <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>array([<span style="color:#f92672">-</span>np<span style="color:#f92672">.</span>sqrt(<span style="color:#ae81ff">3</span>), <span style="color:#ae81ff">1</span>]) <span style="color:#f92672">*</span> <span style="color:#ae81ff">0.5</span>    
+dt <span style="color:#f92672">=</span> <span style="color:#ae81ff">0.05</span>
+Nstp <span style="color:#f92672">=</span> <span style="color:#ae81ff">1000</span>
+W <span style="color:#f92672">=</span> <span style="color:#ae81ff">3.0</span>
+Navg <span style="color:#f92672">=</span> <span style="color:#ae81ff">5</span>
+bc <span style="color:#f92672">=</span> <span style="color:#e6db74">&#39;c&#39;</span>
+opers <span style="color:#f92672">=</span> [<span style="color:#e6db74">&#39;x&#39;</span>, <span style="color:#e6db74">&#39;y&#39;</span>, <span style="color:#e6db74">&#39;z&#39;</span>]
+graphs <span style="color:#f92672">=</span> [<span style="color:#ae81ff">8</span>, <span style="color:#ae81ff">10</span>, <span style="color:#ae81ff">12</span>]
+
+
+<span style="color:#66d9ef">try</span>:
+    df <span style="color:#f92672">=</span> pd<span style="color:#f92672">.</span>read_pickle(save)
+<span style="color:#66d9ef">except</span> FileNotFoundError:
+    
+    randoms <span style="color:#f92672">=</span> {
+        <span style="color:#e6db74">&#39;Pauli&#39;</span> : [],
+        <span style="color:#e6db74">&#39;vals&#39;</span> : [],
+        <span style="color:#e6db74">&#39;L&#39;</span> : [],
+        <span style="color:#e6db74">&#39;i&#39;</span> : [],
+    }
+
+    
+    rng <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>random<span style="color:#f92672">.</span>default_rng(seed<span style="color:#f92672">=</span><span style="color:#ae81ff">935</span>)
+
+    <span style="color:#66d9ef">for</span> L <span style="color:#f92672">in</span> graphs:
+        psi <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>
+        <span style="color:#66d9ef">for</span> i <span style="color:#f92672">in</span> range(L):
+            psi <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>kron(xi, psi)
+        <span style="color:#66d9ef">for</span> i <span style="color:#f92672">in</span> range(Navg):
+            job <span style="color:#f92672">=</span> dict(
+                oper<span style="color:#f92672">=</span>models<span style="color:#f92672">.</span>tfim_z<span style="color:#f92672">.</span>H_dense,
+                oper_params<span style="color:#f92672">=</span>{
+                    <span style="color:#e6db74">&#39;L&#39;</span> : L,
+                    <span style="color:#e6db74">&#39;h&#39;</span> : rng<span style="color:#f92672">.</span>uniform(low<span style="color:#f92672">=-</span>W, high<span style="color:#f92672">=</span>W, size<span style="color:#f92672">=</span>L),
+                    <span style="color:#e6db74">&#39;hz&#39;</span>: rng<span style="color:#f92672">.</span>uniform(low<span style="color:#f92672">=-</span>W, high<span style="color:#f92672">=</span>W, size<span style="color:#f92672">=</span>L),
+                    <span style="color:#e6db74">&#39;bc&#39;</span>: bc,
+                },
+                solver<span style="color:#f92672">=</span>np<span style="color:#f92672">.</span>linalg<span style="color:#f92672">.</span>eigh,
+                solver_params<span style="color:#f92672">=</span>{},
+            )
+            evals, evecs <span style="color:#f92672">=</span> data<span style="color:#f92672">.</span>jobs<span style="color:#f92672">.</span>obtain(<span style="color:#f92672">**</span>job)
+
+            coef <span style="color:#f92672">=</span> evecs<span style="color:#f92672">.</span>T <span style="color:#960050;background-color:#1e0010">@</span> psi
+            <span style="color:#66d9ef">for</span> which <span style="color:#f92672">in</span> opers:
+                cevecs <span style="color:#f92672">=</span> (coef <span style="color:#f92672">*</span> evecs)<span style="color:#f92672">.</span>T<span style="color:#f92672">.</span>astype(<span style="color:#e6db74">&#39;complex&#39;</span>)
+                tevals <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>exp(<span style="color:#f92672">-</span><span style="color:#ae81ff">1j</span><span style="color:#f92672">*</span>dt<span style="color:#f92672">*</span>evals)
+                randoms[<span style="color:#e6db74">&#39;L&#39;</span>]<span style="color:#f92672">.</span>append(L)
+                randoms[<span style="color:#e6db74">&#39;i&#39;</span>]<span style="color:#f92672">.</span>append(i)
+                randoms[<span style="color:#e6db74">&#39;Pauli&#39;</span>]<span style="color:#f92672">.</span>append(which)
+                randoms[<span style="color:#e6db74">&#39;vals&#39;</span>]<span style="color:#f92672">.</span>append(
+                    measure<span style="color:#f92672">.</span>evolve<span style="color:#f92672">.</span>Pauli_ev(
+                        L<span style="color:#f92672">=</span>L, Nstp<span style="color:#f92672">=</span>Nstp, which<span style="color:#f92672">=</span>which, cevecs<span style="color:#f92672">=</span>cevecs, tevals<span style="color:#f92672">=</span>tevals,
+                        num_threads<span style="color:#f92672">=</span><span style="color:#ae81ff">4</span>
+                    )
+                )
+
+    df <span style="color:#f92672">=</span> pd<span style="color:#f92672">.</span>DataFrame(randoms)
+    df<span style="color:#f92672">.</span>to_pickle(save)
+</code></pre></div><pre><code>CPU times: user 3.22 ms, sys: 0 ns, total: 3.22 ms
+Wall time: 4.67 ms
+</code></pre>
+<p>The original run time was:</p>
+<pre><code>CPU times: user 1h 36min 47s, sys: 16 s, total: 1h 37min 3s
+Wall time: 8min 25s
+</code></pre><div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">%%</span>time
+<span style="color:#75715e"># Here we repeat the calculations to get the thermal values</span>
+zzz <span style="color:#f92672">=</span> <span style="color:#66d9ef">lambda</span> x: np<span style="color:#f92672">.</span>exp(<span style="color:#f92672">-</span>x <span style="color:#f92672">*</span> evals)
+zz  <span style="color:#f92672">=</span> <span style="color:#66d9ef">lambda</span> x: sum(evals <span style="color:#f92672">*</span> zzz(x))
+z   <span style="color:#f92672">=</span> <span style="color:#66d9ef">lambda</span> x: sum(zzz(x))
+
+energies <span style="color:#f92672">=</span> []
+roots <span style="color:#f92672">=</span> []
+observe <span style="color:#f92672">=</span> dict(x<span style="color:#f92672">=</span>[], y<span style="color:#f92672">=</span>[], z<span style="color:#f92672">=</span>[])
+
+nrow <span style="color:#f92672">=</span> <span style="color:#ae81ff">2</span>
+ncol <span style="color:#f92672">=</span> <span style="color:#ae81ff">2</span>
+
+rng <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>random<span style="color:#f92672">.</span>default_rng(seed<span style="color:#f92672">=</span><span style="color:#ae81ff">935</span>)
+
+<span style="color:#66d9ef">for</span> L <span style="color:#f92672">in</span> graphs:
+    <span style="color:#66d9ef">for</span> i <span style="color:#f92672">in</span> range(Navg):
+        hx <span style="color:#f92672">=</span> rng<span style="color:#f92672">.</span>uniform(low<span style="color:#f92672">=-</span>W, high<span style="color:#f92672">=</span>W, size<span style="color:#f92672">=</span>L)
+        hz <span style="color:#f92672">=</span> rng<span style="color:#f92672">.</span>uniform(low<span style="color:#f92672">=-</span>W, high<span style="color:#f92672">=</span>W, size<span style="color:#f92672">=</span>L)
+        job <span style="color:#f92672">=</span> dict(
+            oper<span style="color:#f92672">=</span>models<span style="color:#f92672">.</span>tfim_z<span style="color:#f92672">.</span>H_dense,
+            oper_params<span style="color:#f92672">=</span>{
+                <span style="color:#e6db74">&#39;L&#39;</span> : L,
+                <span style="color:#e6db74">&#39;h&#39;</span> : hx,
+                <span style="color:#e6db74">&#39;hz&#39;</span>: hz,
+                <span style="color:#e6db74">&#39;bc&#39;</span>: bc,
+            },
+            solver<span style="color:#f92672">=</span>np<span style="color:#f92672">.</span>linalg<span style="color:#f92672">.</span>eigh,
+            solver_params<span style="color:#f92672">=</span>{},
+        )
+        evals, evecs <span style="color:#f92672">=</span> data<span style="color:#f92672">.</span>jobs<span style="color:#f92672">.</span>obtain(<span style="color:#f92672">**</span>job)
+        <span style="color:#75715e"># Build inital state</span>
+        psi <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>
+        <span style="color:#66d9ef">for</span> _ <span style="color:#f92672">in</span> range(L):
+            psi <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>kron(xi, psi)
+        <span style="color:#66d9ef">assert</span> np<span style="color:#f92672">.</span>allclose(np<span style="color:#f92672">.</span>linalg<span style="color:#f92672">.</span>norm(psi), <span style="color:#ae81ff">1</span>)
+        energies<span style="color:#f92672">.</span>append(
+            np<span style="color:#f92672">.</span>inner(psi, models<span style="color:#f92672">.</span>tfim_z<span style="color:#f92672">.</span>H_vec(psi, L, hx, bc, hz))
+        )
+        <span style="color:#75715e"># Find which beta gives energy of psi</span>
+        roots<span style="color:#f92672">.</span>append(
+            optimize<span style="color:#f92672">.</span>root_scalar(
+                <span style="color:#66d9ef">lambda</span> x: zz(x) <span style="color:#f92672">/</span> z(x) <span style="color:#f92672">+</span> abs(energies[<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>]),
+                bracket<span style="color:#f92672">=</span>[<span style="color:#ae81ff">1e-5</span>, <span style="color:#ae81ff">10</span>], method<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;brentq&#39;</span>
+            )<span style="color:#f92672">.</span>root
+        )
+        <span style="color:#75715e"># Build thermal state</span>
+        therm <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>exp(<span style="color:#f92672">-</span>roots[<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>] <span style="color:#f92672">*</span> evals)
+        therm <span style="color:#f92672">=</span> therm <span style="color:#f92672">/</span> sum(therm)
+        <span style="color:#75715e"># Normalize!</span>
+        therm <span style="color:#f92672">=</span> therm <span style="color:#f92672">/</span> np<span style="color:#f92672">.</span>linalg<span style="color:#f92672">.</span>norm(therm)
+        <span style="color:#75715e"># Calculate expectation values</span>
+        <span style="color:#66d9ef">for</span> which <span style="color:#f92672">in</span> opers:
+            cevecs <span style="color:#f92672">=</span> (therm <span style="color:#f92672">*</span> evecs)<span style="color:#f92672">.</span>T<span style="color:#f92672">.</span>astype(<span style="color:#e6db74">&#39;complex&#39;</span>)
+            tevals <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>zeros(<span style="color:#ae81ff">2</span> <span style="color:#f92672">**</span> L, dtype<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;complex&#39;</span>)
+            observe[which]<span style="color:#f92672">.</span>append(
+                measure<span style="color:#f92672">.</span>evolve<span style="color:#f92672">.</span>Pauli_ev(
+                    L<span style="color:#f92672">=</span>L, Nstp<span style="color:#f92672">=</span><span style="color:#ae81ff">1</span>, which<span style="color:#f92672">=</span>which, cevecs<span style="color:#f92672">=</span>cevecs, tevals<span style="color:#f92672">=</span>tevals,
+                    num_threads<span style="color:#f92672">=</span><span style="color:#ae81ff">4</span>
+                )
+            )
+</code></pre></div><pre><code>CPU times: user 7.13 s, sys: 823 ms, total: 7.95 s
+Wall time: 2.21 s
+</code></pre>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">nrow <span style="color:#f92672">=</span> len(graphs)
+ncol <span style="color:#f92672">=</span> len(opers)
+fig, axes <span style="color:#f92672">=</span> plt<span style="color:#f92672">.</span>subplots(nrow, ncol)
+<span style="color:#66d9ef">for</span> i, row <span style="color:#f92672">in</span> enumerate(axes):
+    <span style="color:#66d9ef">for</span> j, ax <span style="color:#f92672">in</span> enumerate(row):
+        <span style="color:#66d9ef">for</span> k <span style="color:#f92672">in</span> range(Navg):
+            ax<span style="color:#f92672">.</span>plot(
+                np<span style="color:#f92672">.</span>arange(Nstp)<span style="color:#f92672">*</span>dt,
+                df[(df<span style="color:#f92672">.</span>Pauli <span style="color:#f92672">==</span> opers[j]) <span style="color:#f92672">&amp;</span> (df<span style="color:#f92672">.</span>L <span style="color:#f92672">==</span> graphs[i]) <span style="color:#f92672">&amp;</span> (df<span style="color:#f92672">.</span>i <span style="color:#f92672">==</span> k)
+                ]<span style="color:#f92672">.</span>vals<span style="color:#f92672">.</span>values[<span style="color:#ae81ff">0</span>], alpha<span style="color:#f92672">=</span><span style="color:#ae81ff">0.3</span>
+            )
+        ax<span style="color:#f92672">.</span>plot(
+            np<span style="color:#f92672">.</span>arange(Nstp)<span style="color:#f92672">*</span>dt,
+            np<span style="color:#f92672">.</span>mean(df[(df<span style="color:#f92672">.</span>Pauli <span style="color:#f92672">==</span> opers[j]) <span style="color:#f92672">&amp;</span> (df<span style="color:#f92672">.</span>L <span style="color:#f92672">==</span> graphs[i])]<span style="color:#f92672">.</span>vals<span style="color:#f92672">.</span>values)
+        )
+        ax<span style="color:#f92672">.</span>axhline(np<span style="color:#f92672">.</span>mean(observe[opers[j]][i<span style="color:#f92672">*</span>Navg:(i<span style="color:#f92672">+</span><span style="color:#ae81ff">1</span>)<span style="color:#f92672">*</span>Navg]))
+        ax<span style="color:#f92672">.</span>set_title(f<span style="color:#e6db74">&#34;$\sigma_0^{opers[j]}, L={graphs[i]}$&#34;</span>)
+        ax<span style="color:#f92672">.</span>set_xlabel(<span style="color:#e6db74">&#39;t&#39;</span>)
+        ax<span style="color:#f92672">.</span>set_ylabel(f<span style="color:#e6db74">&#34;$</span><span style="color:#ae81ff">\\</span><span style="color:#e6db74">langle \sigma_0^{opers[j]} (t) </span><span style="color:#ae81ff">\\</span><span style="color:#e6db74">rangle$&#34;</span>)
+fig<span style="color:#f92672">.</span>set_size_inches(<span style="color:#ae81ff">9</span>, <span style="color:#ae81ff">9</span>)
+fig<span style="color:#f92672">.</span>tight_layout()
+plt<span style="color:#f92672">.</span>show()
+</code></pre></div><p><img src="output_7_0.png" alt="png"></p>
+<p>There are 5 realizations of the noise. It looks pretty to see all of them dancing
+about unitarily. Most of them seem to be converging to the same value, especially
+$\sigma^z$ for larger $L$, though it seems like some of the realizations are
+happy doing their own thing.</p>
+<p>The plot displays all of the realizations as translucent traces, whereas the
+solid brown trace is the average of all the traces.
+The horizontal line is the average of the thermal expectation values over the
+realizations.</p>
+<p>I&rsquo;m pretty sure I&rsquo;ve made some mistakes leading to discrepancies between the
+long-time value of the two solid lines.
+I ran into an issue which I tried to patch: the issue was that some of the
+states had positive energy expectation values, so I couldn&rsquo;t solve for the
+inverse temperature because those energies are strictly negative.
+My patch was to flip the sign.</p>
+<p>Alas!</p>
+<h3 id="half-chain-entanglement-entropy--again">Half-chain entanglement entropy &hellip; again</h3>
+<p>Same two states as the previous part</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">%%</span>time
+
+om <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>array([<span style="color:#f92672">-</span>np<span style="color:#f92672">.</span>pi, np<span style="color:#f92672">.</span>e]) <span style="color:#f92672">/</span> np<span style="color:#f92672">.</span>sqrt(np<span style="color:#f92672">.</span>e <span style="color:#f92672">**</span> <span style="color:#ae81ff">2</span> <span style="color:#f92672">+</span> np<span style="color:#f92672">.</span>pi <span style="color:#f92672">**</span> <span style="color:#ae81ff">2</span>)
+
+entropx <span style="color:#f92672">=</span> dict(L<span style="color:#f92672">=</span>[], t<span style="color:#f92672">=</span>[], psi<span style="color:#f92672">=</span>[], phi<span style="color:#f92672">=</span>[], i<span style="color:#f92672">=</span>[])
+
+dt <span style="color:#f92672">=</span> <span style="color:#ae81ff">0.1</span>
+Nstp <span style="color:#f92672">=</span> <span style="color:#ae81ff">60</span>
+
+rng <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>random<span style="color:#f92672">.</span>default_rng(seed<span style="color:#f92672">=</span><span style="color:#ae81ff">935</span>)
+
+<span style="color:#66d9ef">for</span> L <span style="color:#f92672">in</span> graphs:
+    <span style="color:#66d9ef">for</span> i <span style="color:#f92672">in</span> range(Navg):
+        hx <span style="color:#f92672">=</span> rng<span style="color:#f92672">.</span>uniform(low<span style="color:#f92672">=-</span>W, high<span style="color:#f92672">=</span>W, size<span style="color:#f92672">=</span>L)
+        hz <span style="color:#f92672">=</span> rng<span style="color:#f92672">.</span>uniform(low<span style="color:#f92672">=-</span>W, high<span style="color:#f92672">=</span>W, size<span style="color:#f92672">=</span>L)
+        job <span style="color:#f92672">=</span> dict(
+            oper<span style="color:#f92672">=</span>models<span style="color:#f92672">.</span>tfim_z<span style="color:#f92672">.</span>H_dense,
+            oper_params<span style="color:#f92672">=</span>{
+                <span style="color:#e6db74">&#39;L&#39;</span> : L,
+                <span style="color:#e6db74">&#39;h&#39;</span> : hx,
+                <span style="color:#e6db74">&#39;hz&#39;</span>: hz,
+                <span style="color:#e6db74">&#39;bc&#39;</span>: bc,
+            },
+            solver<span style="color:#f92672">=</span>np<span style="color:#f92672">.</span>linalg<span style="color:#f92672">.</span>eigh,
+            solver_params<span style="color:#f92672">=</span>{},
+        )
+        evals, evecs <span style="color:#f92672">=</span> data<span style="color:#f92672">.</span>jobs<span style="color:#f92672">.</span>obtain(<span style="color:#f92672">**</span>job)
+        tevals <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>exp(<span style="color:#f92672">-</span><span style="color:#ae81ff">1j</span> <span style="color:#f92672">*</span> evals <span style="color:#f92672">*</span> dt)
+        <span style="color:#75715e"># Build inital state</span>
+        psi <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>
+        phi <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>
+        <span style="color:#66d9ef">for</span> _ <span style="color:#f92672">in</span> range(L):
+            psi <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>kron(xi, psi)
+            phi <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>kron(om, phi)
+        <span style="color:#66d9ef">assert</span> np<span style="color:#f92672">.</span>allclose(np<span style="color:#f92672">.</span>linalg<span style="color:#f92672">.</span>norm(psi), <span style="color:#ae81ff">1</span>)
+        <span style="color:#66d9ef">assert</span> np<span style="color:#f92672">.</span>allclose(np<span style="color:#f92672">.</span>linalg<span style="color:#f92672">.</span>norm(phi), <span style="color:#ae81ff">1</span>)
+        <span style="color:#75715e"># change to energy basis</span>
+        psi <span style="color:#f92672">=</span> evecs<span style="color:#f92672">.</span>T <span style="color:#960050;background-color:#1e0010">@</span> psi
+        phi <span style="color:#f92672">=</span> evecs<span style="color:#f92672">.</span>T <span style="color:#960050;background-color:#1e0010">@</span> phi
+        <span style="color:#66d9ef">for</span> j <span style="color:#f92672">in</span> range(Nstp):
+            <span style="color:#75715e"># measure</span>
+            entropx[<span style="color:#e6db74">&#39;L&#39;</span>]<span style="color:#f92672">.</span>append(L)
+            entropx[<span style="color:#e6db74">&#39;t&#39;</span>]<span style="color:#f92672">.</span>append(j<span style="color:#f92672">*</span>dt)
+            entropx[<span style="color:#e6db74">&#39;i&#39;</span>]<span style="color:#f92672">.</span>append(i)
+            entropx[<span style="color:#e6db74">&#39;psi&#39;</span>]<span style="color:#f92672">.</span>append(
+                measure<span style="color:#f92672">.</span>entropy<span style="color:#f92672">.</span>entanglement(basis<span style="color:#f92672">.</span>schmidt<span style="color:#f92672">.</span>values(
+                        evecs <span style="color:#960050;background-color:#1e0010">@</span> psi, np<span style="color:#f92672">.</span>arange(L <span style="color:#f92672">//</span> <span style="color:#ae81ff">2</span>), L
+                    ))
+            )
+            entropx[<span style="color:#e6db74">&#39;phi&#39;</span>]<span style="color:#f92672">.</span>append(
+                measure<span style="color:#f92672">.</span>entropy<span style="color:#f92672">.</span>entanglement(basis<span style="color:#f92672">.</span>schmidt<span style="color:#f92672">.</span>values(
+                        evecs <span style="color:#960050;background-color:#1e0010">@</span> phi, np<span style="color:#f92672">.</span>arange(L <span style="color:#f92672">//</span> <span style="color:#ae81ff">2</span>), L
+                    ))
+            )
+            <span style="color:#75715e"># propagate</span>
+            psi <span style="color:#f92672">=</span> tevals <span style="color:#f92672">*</span> psi
+            phi <span style="color:#f92672">=</span> tevals <span style="color:#f92672">*</span> phi
+
+    df <span style="color:#f92672">=</span> pd<span style="color:#f92672">.</span>DataFrame(entropx)
+</code></pre></div><pre><code>CPU times: user 1min 41s, sys: 13.6 s, total: 1min 55s
+Wall time: 29 s
+</code></pre>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">fig, axes <span style="color:#f92672">=</span> plt<span style="color:#f92672">.</span>subplots(<span style="color:#ae81ff">1</span>, <span style="color:#ae81ff">2</span>, sharey<span style="color:#f92672">=</span>True)
+grp <span style="color:#f92672">=</span> df<span style="color:#f92672">.</span>groupby([<span style="color:#e6db74">&#39;L&#39;</span>, <span style="color:#e6db74">&#39;t&#39;</span>])<span style="color:#f92672">.</span>mean()<span style="color:#f92672">.</span>reset_index()
+<span style="color:#66d9ef">for</span> i, L <span style="color:#f92672">in</span> enumerate(graphs):
+    <span style="color:#66d9ef">for</span> j, which <span style="color:#f92672">in</span> enumerate([<span style="color:#e6db74">&#39;phi&#39;</span>, <span style="color:#e6db74">&#39;psi&#39;</span>]):
+        <span style="color:#75715e"># psi</span>
+        axes[j]<span style="color:#f92672">.</span>plot(
+            grp[grp<span style="color:#f92672">.</span>L <span style="color:#f92672">==</span> L]<span style="color:#f92672">.</span>t<span style="color:#f92672">.</span>values,
+            grp[grp<span style="color:#f92672">.</span>L <span style="color:#f92672">==</span> L][which]<span style="color:#f92672">.</span>values <span style="color:#f92672">/</span> L,
+            label<span style="color:#f92672">=</span>f<span style="color:#e6db74">&#39;$L={L}$&#39;</span>
+        )
+        axes[j]<span style="color:#f92672">.</span>set_title(<span style="color:#e6db74">&#39;$</span><span style="color:#ae81ff">\\</span><span style="color:#e6db74">psi$&#39;</span>)
+        axes[j]<span style="color:#f92672">.</span>set_xlabel(<span style="color:#e6db74">&#39;$t$&#39;</span>)
+        axes[j]<span style="color:#f92672">.</span>legend()
+axes[<span style="color:#ae81ff">0</span>]<span style="color:#f92672">.</span>set_ylabel(<span style="color:#e6db74">&#39;$S_{L/2}/L$&#39;</span>)
+plt<span style="color:#f92672">.</span>show()
+</code></pre></div><p><img src="output_11_0.png" alt="png"></p>
+<p>As usual, the entropy is increasing with time.
+Here we&rsquo;ve averaged over the realizations of the Hamiltonian.
+Bad idea to use MPS, but who knows?</p>
+<h3 id="eigenstate-eth-again">Eigenstate ETH again</h3>
+<p>Let&rsquo;s observe the features of the same observables in the energy basis.
+I checked that there were no momentum sectors too. Instead we should do the calculation for some meaningfull subset of the eigenvectors.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">%%</span>time
+
+bc <span style="color:#f92672">=</span> <span style="color:#e6db74">&#39;c&#39;</span>
+sizes <span style="color:#f92672">=</span> [<span style="color:#ae81ff">8</span>, <span style="color:#ae81ff">10</span>, <span style="color:#ae81ff">12</span>]
+opers <span style="color:#f92672">=</span> [<span style="color:#e6db74">&#39;x&#39;</span>, <span style="color:#e6db74">&#39;y&#39;</span>, <span style="color:#e6db74">&#39;z&#39;</span>]
+values <span style="color:#f92672">=</span> {
+    <span style="color:#e6db74">&#39;Pauli&#39;</span> : [],
+    <span style="color:#e6db74">&#39;vals&#39;</span> : [],
+    <span style="color:#e6db74">&#39;L&#39;</span> : [],
+    <span style="color:#e6db74">&#39;E&#39;</span> : [],
+    <span style="color:#e6db74">&#39;n&#39;</span> : [],
+    <span style="color:#e6db74">&#39;k&#39;</span> : [],
+}
+entropx <span style="color:#f92672">=</span> dict(L<span style="color:#f92672">=</span>[], S<span style="color:#f92672">=</span>[], E<span style="color:#f92672">=</span>[], n<span style="color:#f92672">=</span>[], k<span style="color:#f92672">=</span>[])
+
+rng <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>random<span style="color:#f92672">.</span>default_rng(seed<span style="color:#f92672">=</span><span style="color:#ae81ff">935</span>)
+
+<span style="color:#66d9ef">for</span> L <span style="color:#f92672">in</span> sizes:
+    <span style="color:#66d9ef">for</span> k <span style="color:#f92672">in</span> range(Navg):
+        hx <span style="color:#f92672">=</span> rng<span style="color:#f92672">.</span>uniform(low<span style="color:#f92672">=-</span>W, high<span style="color:#f92672">=</span>W, size<span style="color:#f92672">=</span>L)
+        hz <span style="color:#f92672">=</span> rng<span style="color:#f92672">.</span>uniform(low<span style="color:#f92672">=-</span>W, high<span style="color:#f92672">=</span>W, size<span style="color:#f92672">=</span>L)
+        job <span style="color:#f92672">=</span> dict(
+            oper<span style="color:#f92672">=</span>models<span style="color:#f92672">.</span>tfim_z<span style="color:#f92672">.</span>H_dense,
+            oper_params<span style="color:#f92672">=</span>{
+                <span style="color:#e6db74">&#39;L&#39;</span> : L,
+                <span style="color:#e6db74">&#39;h&#39;</span> : hx,
+                <span style="color:#e6db74">&#39;hz&#39;</span>: hz,
+                <span style="color:#e6db74">&#39;bc&#39;</span>: bc,
+            },
+            solver<span style="color:#f92672">=</span>np<span style="color:#f92672">.</span>linalg<span style="color:#f92672">.</span>eigh,
+            solver_params<span style="color:#f92672">=</span>{},
+        )
+        evals, evecs <span style="color:#f92672">=</span> data<span style="color:#f92672">.</span>jobs<span style="color:#f92672">.</span>obtain(<span style="color:#f92672">**</span>job)
+
+        <span style="color:#75715e"># Now calculate expectation values</span>
+        <span style="color:#66d9ef">for</span> i, _ <span style="color:#f92672">in</span> enumerate(evals):
+            <span style="color:#75715e"># only look at 100 eigenstates to save time</span>
+            <span style="color:#66d9ef">if</span> i <span style="color:#f92672">%</span> (evals<span style="color:#f92672">.</span>size <span style="color:#f92672">//</span> <span style="color:#ae81ff">100</span>) <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span>:
+                <span style="color:#66d9ef">for</span> which <span style="color:#f92672">in</span> opers:
+                    tevals <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>zeros(<span style="color:#ae81ff">2</span> <span style="color:#f92672">**</span> L, dtype<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;complex&#39;</span>)
+                    tevals[i] <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>
+                    cevecs <span style="color:#f92672">=</span> (tevals <span style="color:#f92672">*</span> evecs)<span style="color:#f92672">.</span>T<span style="color:#f92672">.</span>astype(<span style="color:#e6db74">&#39;complex&#39;</span>)
+                    values[<span style="color:#e6db74">&#39;vals&#39;</span>]<span style="color:#f92672">.</span>append(
+                        measure<span style="color:#f92672">.</span>evolve<span style="color:#f92672">.</span>Pauli_ev(
+                            L<span style="color:#f92672">=</span>L, Nstp<span style="color:#f92672">=</span><span style="color:#ae81ff">1</span>, which<span style="color:#f92672">=</span>which, cevecs<span style="color:#f92672">=</span>cevecs, tevals<span style="color:#f92672">=</span>tevals,
+                            num_threads<span style="color:#f92672">=</span><span style="color:#ae81ff">4</span>
+                        )[<span style="color:#ae81ff">0</span>]
+                    )
+                    values[<span style="color:#e6db74">&#39;k&#39;</span>]<span style="color:#f92672">.</span>append(k)
+                    values[<span style="color:#e6db74">&#39;L&#39;</span>]<span style="color:#f92672">.</span>append(L)
+                    values[<span style="color:#e6db74">&#39;n&#39;</span>]<span style="color:#f92672">.</span>append(i)
+                    values[<span style="color:#e6db74">&#39;E&#39;</span>]<span style="color:#f92672">.</span>append(evals[i])
+                    values[<span style="color:#e6db74">&#39;Pauli&#39;</span>]<span style="color:#f92672">.</span>append(which)
+                entropx[<span style="color:#e6db74">&#39;k&#39;</span>]<span style="color:#f92672">.</span>append(k)
+                entropx[<span style="color:#e6db74">&#39;L&#39;</span>]<span style="color:#f92672">.</span>append(L)
+                entropx[<span style="color:#e6db74">&#39;n&#39;</span>]<span style="color:#f92672">.</span>append(i)
+                entropx[<span style="color:#e6db74">&#39;E&#39;</span>]<span style="color:#f92672">.</span>append(evals[i])
+                entropx[<span style="color:#e6db74">&#39;S&#39;</span>]<span style="color:#f92672">.</span>append(
+                    measure<span style="color:#f92672">.</span>entropy<span style="color:#f92672">.</span>entanglement(basis<span style="color:#f92672">.</span>schmidt<span style="color:#f92672">.</span>values(
+                        evecs[:, i], np<span style="color:#f92672">.</span>arange(L <span style="color:#f92672">//</span> <span style="color:#ae81ff">2</span>), L
+                    ))
+                )
+df <span style="color:#f92672">=</span> pd<span style="color:#f92672">.</span>DataFrame(values)
+dg <span style="color:#f92672">=</span> pd<span style="color:#f92672">.</span>DataFrame(entropx)
+</code></pre></div><div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">fig, axes <span style="color:#f92672">=</span> plt<span style="color:#f92672">.</span>subplots(<span style="color:#ae81ff">1</span>, len(opers))
+grp <span style="color:#f92672">=</span> df<span style="color:#f92672">.</span>groupby([<span style="color:#e6db74">&#39;L&#39;</span>, <span style="color:#e6db74">&#39;n&#39;</span>, <span style="color:#e6db74">&#39;Pauli&#39;</span>])<span style="color:#f92672">.</span>mean()<span style="color:#f92672">.</span>reset_index()
+<span style="color:#66d9ef">for</span> i, ax <span style="color:#f92672">in</span> enumerate(axes):
+    <span style="color:#66d9ef">for</span> L <span style="color:#f92672">in</span> sizes:
+        ax<span style="color:#f92672">.</span>scatter(
+            grp[(grp<span style="color:#f92672">.</span>L <span style="color:#f92672">==</span> L) <span style="color:#f92672">&amp;</span> (grp<span style="color:#f92672">.</span>Pauli <span style="color:#f92672">==</span> opers[i])]<span style="color:#f92672">.</span>E<span style="color:#f92672">.</span>values <span style="color:#f92672">/</span> L,
+            grp[(grp<span style="color:#f92672">.</span>L <span style="color:#f92672">==</span> L) <span style="color:#f92672">&amp;</span> (grp<span style="color:#f92672">.</span>Pauli <span style="color:#f92672">==</span> opers[i])]<span style="color:#f92672">.</span>vals<span style="color:#f92672">.</span>values,
+            label<span style="color:#f92672">=</span>f<span style="color:#e6db74">&#39;$L={L}$&#39;</span>, alpha<span style="color:#f92672">=</span><span style="color:#ae81ff">0.8</span>,
+        )
+    ax<span style="color:#f92672">.</span>set_title(f<span style="color:#e6db74">&#39;$</span><span style="color:#ae81ff">\\</span><span style="color:#e6db74">sigma_0^{opers[i]}$&#39;</span>)
+    ax<span style="color:#f92672">.</span>set_xlabel(<span style="color:#e6db74">&#39;$</span><span style="color:#ae81ff">\\</span><span style="color:#e6db74">epsilon_n / L$&#39;</span>)
+    ax<span style="color:#f92672">.</span>set_ylabel(<span style="color:#e6db74">&#39;$</span><span style="color:#ae81ff">\\</span><span style="color:#e6db74">langle </span><span style="color:#ae81ff">\\</span><span style="color:#e6db74">sigma_0^{opers[i]} </span><span style="color:#ae81ff">\\</span><span style="color:#e6db74">rangle_n$&#39;</span>)
+    ax<span style="color:#f92672">.</span>legend()
+fig<span style="color:#f92672">.</span>set_size_inches(<span style="color:#ae81ff">9</span>, <span style="color:#ae81ff">6</span>)
+fig<span style="color:#f92672">.</span>tight_layout()
+</code></pre></div><p><img src="output_15_0.png" alt="png"></p>
+<p>This data is much noisier than the eigenstate ETH Hamiltonian.
+It appears the there is much less correlation with energy
+in these expectation values of the eigenstates.
+In addition, the dependence on $L$ is unclear.
+For $\sigma^z$, it appear that $L=10$ has a larger
+range than the others.
+I only obtained data points for 100 eigenstates, and each data point is an average over 5 realizations.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">fig, ax <span style="color:#f92672">=</span> plt<span style="color:#f92672">.</span>subplots()
+grp <span style="color:#f92672">=</span> dg<span style="color:#f92672">.</span>groupby([<span style="color:#e6db74">&#39;L&#39;</span>, <span style="color:#e6db74">&#39;n&#39;</span>])<span style="color:#f92672">.</span>mean()<span style="color:#f92672">.</span>reset_index()
+<span style="color:#66d9ef">for</span> L <span style="color:#f92672">in</span> sizes:
+    ax<span style="color:#f92672">.</span>scatter(
+        grp[grp<span style="color:#f92672">.</span>L <span style="color:#f92672">==</span> L]<span style="color:#f92672">.</span>E<span style="color:#f92672">.</span>values <span style="color:#f92672">/</span> L,
+        grp[grp<span style="color:#f92672">.</span>L <span style="color:#f92672">==</span> L]<span style="color:#f92672">.</span>S<span style="color:#f92672">.</span>values <span style="color:#f92672">/</span> L,
+        label<span style="color:#f92672">=</span>f<span style="color:#e6db74">&#39;$L={L}$&#39;</span>, alpha<span style="color:#f92672">=</span><span style="color:#ae81ff">0.8</span>
+    )
+ax<span style="color:#f92672">.</span>set_title(<span style="color:#e6db74">&#39;Entanglement entropy&#39;</span>)
+ax<span style="color:#f92672">.</span>set_xlabel(<span style="color:#e6db74">&#39;$</span><span style="color:#ae81ff">\\</span><span style="color:#e6db74">epsilon_n / L$&#39;</span>)
+ax<span style="color:#f92672">.</span>set_ylabel(<span style="color:#e6db74">&#39;$S_{L/2} / L$&#39;</span>)
+ax<span style="color:#f92672">.</span>legend()
+plt<span style="color:#f92672">.</span>show()
+</code></pre></div><p><img src="output_17_0.png" alt="png"></p>
+<p>Here we can see that the entanglement entropies, averaged over 5 realizations, appear to separate,
+with some overlap, as a function of $L$.
+The same concave down pattern is observed as with the
+eigenstate ETH experiments, but the magnitude of the
+maximum is less by a factor of 2.
+However, this MBL model with noisy coefficients
+gives much noisier data.
+We still note that the MBL physics gives lower entropies per the eigenstates
+and that the observables all have mean zero, making the model on average contain less information, but the
+specific realizations have more conserved quantities and are less likely to thermalize.</p>
+<h2 id="quantum-many-body-scar-states">Quantum many-body scar states</h2>
+<p>The following Hamiltonian is a toy model of a loop of spin-1/2 Rydberg atoms:
+$$
+H = \frac{\Omega}{2} \sum_{j=1}^L \sigma_j^x
++ \sum_{j=1}^L P_{j, j+1} \sigma_{j+2}^z
+,
+$$
+where
+\begin{align}
+P_{j, j+1}
+= (1 - \bm \sigma_j \cdot \bm \sigma_{j+1}) / 4
+= (1 - \sigma_j^x \sigma_{j+1}^x - \sigma_j^y \sigma_{j+1}^y - \sigma_j^z \sigma_{j+1}^z) / 4
+.
+\end{align}
+We are interested in this model because it contains scar states with unusually
+low entanglement entropy. These can be viewed as the quantum analog of periodic
+orbits in classically chaotic systems.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">%%</span>time
+save <span style="color:#f92672">=</span> <span style="color:#e6db74">&#39;../../data/scars.pick&#39;</span>
+<span style="color:#66d9ef">try</span>:
+    df <span style="color:#f92672">=</span> pd<span style="color:#f92672">.</span>read_pickle(save)
+<span style="color:#66d9ef">except</span> FileNotFoundError:
+
+    scars <span style="color:#f92672">=</span> {
+        <span style="color:#e6db74">&#39;E&#39;</span> : [],
+        <span style="color:#e6db74">&#39;S&#39;</span> : [],
+        <span style="color:#e6db74">&#39;O&#39;</span> : [],
+        <span style="color:#e6db74">&#39;L&#39;</span> : [],
+    }
+
+    <span style="color:#66d9ef">for</span> L, O <span style="color:#f92672">in</span> product([<span style="color:#ae81ff">8</span>, <span style="color:#ae81ff">10</span>, <span style="color:#ae81ff">12</span>], [<span style="color:#ae81ff">0.0</span>, <span style="color:#ae81ff">0.5</span>, <span style="color:#ae81ff">1.0</span>, <span style="color:#ae81ff">4.0</span>]):
+
+        job <span style="color:#f92672">=</span> dict(
+            oper<span style="color:#f92672">=</span>models<span style="color:#f92672">.</span>scars<span style="color:#f92672">.</span>H_dense,
+            oper_params<span style="color:#f92672">=</span>{
+                <span style="color:#e6db74">&#39;L&#39;</span> : L,
+                <span style="color:#e6db74">&#39;O&#39;</span> : O,
+            },
+            solver<span style="color:#f92672">=</span>np<span style="color:#f92672">.</span>linalg<span style="color:#f92672">.</span>eigh,
+            solver_params<span style="color:#f92672">=</span>{},
+        )
+        evals, evecs <span style="color:#f92672">=</span> data<span style="color:#f92672">.</span>jobs<span style="color:#f92672">.</span>obtain(<span style="color:#f92672">**</span>job)
+
+        scars[<span style="color:#e6db74">&#39;L&#39;</span>]<span style="color:#f92672">.</span>append(L)
+        scars[<span style="color:#e6db74">&#39;O&#39;</span>]<span style="color:#f92672">.</span>append(O)
+        scars[<span style="color:#e6db74">&#39;E&#39;</span>]<span style="color:#f92672">.</span>append(evals)
+        scars[<span style="color:#e6db74">&#39;S&#39;</span>]<span style="color:#f92672">.</span>append([
+            <span style="color:#75715e"># Evaluate entanglement entropy with respect to a half-subssystem</span>
+            <span style="color:#75715e"># To use a random subsystem instead of a contiguous one, use comments</span>
+            <span style="color:#75715e"># rng = np.random.default_rng(seed=935)</span>
+            measure<span style="color:#f92672">.</span>entropy<span style="color:#f92672">.</span>entanglement(basis<span style="color:#f92672">.</span>schmidt<span style="color:#f92672">.</span>values(
+                evecs[:, i], np<span style="color:#f92672">.</span>arange(L<span style="color:#f92672">//</span><span style="color:#ae81ff">2</span>), L
+            <span style="color:#75715e">#     evecs[i], rng.choice(np.arange(L), size=L//2, replace=False), L</span>
+            )) <span style="color:#66d9ef">for</span> i <span style="color:#f92672">in</span> range(evals<span style="color:#f92672">.</span>size)
+        ])
+        df <span style="color:#f92672">=</span> pd<span style="color:#f92672">.</span>DataFrame(scars)
+        df<span style="color:#f92672">.</span>to_pickle(save)
+</code></pre></div><pre><code>CPU times: user 8.09 ms, sys: 2 µs, total: 8.09 ms
+Wall time: 7.07 ms
+</code></pre>
+<p>Original run time:</p>
+<pre><code>CPU times: user 1min 19s, sys: 948 ms, total: 1min 20s
+Wall time: 14.4 s
+</code></pre><div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">nrow <span style="color:#f92672">=</span> <span style="color:#ae81ff">4</span>
+ncol <span style="color:#f92672">=</span> <span style="color:#ae81ff">3</span>
+fig, axes <span style="color:#f92672">=</span> plt<span style="color:#f92672">.</span>subplots(nrow, ncol, sharey<span style="color:#f92672">=</span>True)
+<span style="color:#66d9ef">for</span> i, row <span style="color:#f92672">in</span> enumerate(axes):
+    <span style="color:#66d9ef">for</span> j, ax <span style="color:#f92672">in</span> enumerate(row):
+        ax<span style="color:#f92672">.</span>scatter(
+            df<span style="color:#f92672">.</span>E[i <span style="color:#f92672">+</span> j<span style="color:#f92672">*</span>nrow] <span style="color:#f92672">/</span> df<span style="color:#f92672">.</span>L[i <span style="color:#f92672">+</span> j<span style="color:#f92672">*</span>nrow],
+            df<span style="color:#f92672">.</span>S[i <span style="color:#f92672">+</span> j<span style="color:#f92672">*</span>nrow] <span style="color:#f92672">/</span> df<span style="color:#f92672">.</span>L[i <span style="color:#f92672">+</span> j<span style="color:#f92672">*</span>nrow],
+            s<span style="color:#f92672">=</span><span style="color:#ae81ff">20</span>, marker<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;x&#39;</span>, alpha<span style="color:#f92672">=</span><span style="color:#ae81ff">0.4</span>,
+        )
+        ax<span style="color:#f92672">.</span>set_title(<span style="color:#e6db74">&#39;$L=$&#39;</span> <span style="color:#f92672">+</span> str(df<span style="color:#f92672">.</span>L[i <span style="color:#f92672">+</span> j<span style="color:#f92672">*</span>nrow]) \
+            <span style="color:#f92672">+</span> <span style="color:#e6db74">&#39;, $\Omega=$&#39;</span> <span style="color:#f92672">+</span> str(df<span style="color:#f92672">.</span>O[i <span style="color:#f92672">+</span> j<span style="color:#f92672">*</span>nrow]))
+        ax<span style="color:#f92672">.</span>set_ylabel(<span style="color:#e6db74">&#39;$S_{L/2}/L$&#39;</span>)
+        ax<span style="color:#f92672">.</span>set_xlabel(<span style="color:#e6db74">&#39;$\lambda/L$&#39;</span>)
+        ax<span style="color:#f92672">.</span>vlines((df<span style="color:#f92672">.</span>O[i <span style="color:#f92672">+</span> j<span style="color:#f92672">*</span>nrow] <span style="color:#f92672">/</span> df<span style="color:#f92672">.</span>L[i <span style="color:#f92672">+</span> j<span style="color:#f92672">*</span>nrow]) \
+            <span style="color:#f92672">*</span> (np<span style="color:#f92672">.</span>arange(df<span style="color:#f92672">.</span>L[i <span style="color:#f92672">+</span> j<span style="color:#f92672">*</span>nrow] <span style="color:#f92672">+</span> <span style="color:#ae81ff">1</span>) <span style="color:#f92672">-</span> df<span style="color:#f92672">.</span>L[i <span style="color:#f92672">+</span> j<span style="color:#f92672">*</span>nrow] <span style="color:#f92672">/</span> <span style="color:#ae81ff">2</span>),
+            ymin<span style="color:#f92672">=</span><span style="color:#ae81ff">0</span>, ymax<span style="color:#f92672">=</span><span style="color:#ae81ff">0.3</span>, linestyle<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;dotted&#39;</span>,
+        )
+fig<span style="color:#f92672">.</span>set_size_inches(<span style="color:#ae81ff">9</span>, <span style="color:#ae81ff">9</span>)
+fig<span style="color:#f92672">.</span>tight_layout()
+
+</code></pre></div><p><img src="output_22_0.png" alt="png"></p>
+<p>Look, there are scar states!</p>
+<h2 id="code-snippets">Code snippets</h2>
+<p>These are some useful code snippets I though I would drop here.
+I had made a few mistakes while indexing for calculations, so I though I&rsquo;d
+give some code credit where it is due:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#75715e"># Verify orthogonality of eigenvectors (this takes a while)</span>
+<span style="color:#66d9ef">for</span> i, j <span style="color:#f92672">in</span> product(np<span style="color:#f92672">.</span>arange(evals<span style="color:#f92672">.</span>size), repeat <span style="color:#f92672">=</span> <span style="color:#ae81ff">2</span>):
+    <span style="color:#66d9ef">if</span> i <span style="color:#f92672">&gt;</span> j:
+        <span style="color:#66d9ef">continue</span>
+    <span style="color:#66d9ef">elif</span> i <span style="color:#f92672">==</span> j:
+        kron <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>
+    <span style="color:#66d9ef">else</span>:
+        kron <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>
+    <span style="color:#66d9ef">assert</span> np<span style="color:#f92672">.</span>allclose(kron, np<span style="color:#f92672">.</span>inner(evecs[:, i]<span style="color:#f92672">.</span>conj(), evecs[:, j])), str(i) <span style="color:#f92672">+</span> <span style="color:#e6db74">&#39; &#39;</span> <span style="color:#f92672">+</span> str(j)
+</code></pre></div><div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#75715e"># Verify eigenpairs</span>
+<span style="color:#66d9ef">for</span> i <span style="color:#f92672">in</span> range(evals<span style="color:#f92672">.</span>size):
+    <span style="color:#66d9ef">assert</span> np<span style="color:#f92672">.</span>allclose(models<span style="color:#f92672">.</span>scars<span style="color:#f92672">.</span>H_vec(evecs[:, i], L, O), evals[i] <span style="color:#f92672">*</span> evecs[:, i]), str(i)
+</code></pre></div><div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">
+</code></pre></div>
+
+
+      
+    </article>
+    
+  </div>
+
+        </div><footer>
+  <div class="container">
+    <p class="credits copyright">
+      <p class="credits theme-by">
+        <a href="https://lxvm.github.io/ph121c/">root</a>
+      </p>
+    </p>
+  </div>
+</footer>
+</body>
+</html>

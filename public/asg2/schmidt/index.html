@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en"><meta charset="utf-8" />
+
+  <title>Assignment 2: Part 3 - Lorenzo X. Van Muñoz</title>
+
+
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="stylesheet" href="https://lxvm.github.io/ph121c/css/latex.css" />
+<link rel="stylesheet" href="https://lxvm.github.io/ph121c/css/main.css" />
+<script>
+  MathJax = {
+    tex: {
+      inlineMath: [['$', '$'], ["\\(", "\\)"]]
+    }
+  };
+</script>
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<meta name="generator" content="Hugo 0.80.0" /><body>
+
+
+<header>
+  <div class="intro-header">
+    <div class="container">
+      <div class="asg2-heading">
+        
+          <h1>Assignment 2: Part 3</h1>
+        
+      </div>
+    </div>
+  </div>
+</header>
+
+        <div id="content">
+  <div class="container" role="main">
+    <article class="article" class="blog-post">
+      <div class="postmeta">
+        <span class="meta-post">
+  
+</span>
+
+      </div>
+      <br>
+      <h1 id="truncation-error-of-schmidt-decomposition">Truncation error of Schmidt decomposition</h1>
+<h2 id="introduction">Introduction</h2>
+<p>This time, at the ground state we are interested in open boundary conditions
+and performing the Schmidt decomposition at the middle of the chain.
+We also want to compute approximate ground states and identify the errors
+of these approximations.</p>
+<h2 id="program">Program</h2>
+<ul>
+<li>Schmidt decomposition at the middle of the chain ($\ell = L/2$)</li>
+<li>Truncate the state at various ranks from 1 to $2^{L/2}$</li>
+<li>For each approximation, calculate the Frobenius distance and the error in the
+ground state energy relative to the ground state energy from diagonalization</li>
+</ul>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">import</span> numpy <span style="color:#f92672">as</span> np
+<span style="color:#f92672">import</span> pandas <span style="color:#f92672">as</span> pd
+<span style="color:#f92672">import</span> scipy.sparse.linalg <span style="color:#f92672">as</span> sla
+<span style="color:#f92672">import</span> matplotlib.pyplot <span style="color:#f92672">as</span> plt
+<span style="color:#f92672">%</span>matplotlib inline
+
+<span style="color:#f92672">from</span> ph121c_lxvm <span style="color:#f92672">import</span> tfim, basis, tests, data
+</code></pre></div><div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">%%</span>time
+errors <span style="color:#f92672">=</span> {
+    <span style="color:#e6db74">&#39;k&#39;</span> : [], 
+    <span style="color:#e6db74">&#39;h&#39;</span> : [],
+    <span style="color:#e6db74">&#39;F&#39;</span> : [],
+    <span style="color:#e6db74">&#39;E&#39;</span> : [],
+}
+L <span style="color:#f92672">=</span> <span style="color:#ae81ff">20</span>
+l <span style="color:#f92672">=</span> <span style="color:#ae81ff">10</span>
+bc <span style="color:#f92672">=</span> <span style="color:#e6db74">&#39;o&#39;</span>
+<span style="color:#66d9ef">for</span> oper_params <span style="color:#f92672">in</span> tests<span style="color:#f92672">.</span>tfim_sweep(
+    L <span style="color:#f92672">=</span> [L],
+    h <span style="color:#f92672">=</span> [<span style="color:#ae81ff">0.3</span>, <span style="color:#ae81ff">1</span>, <span style="color:#ae81ff">1.7</span>],
+    bc<span style="color:#f92672">=</span> [bc],
+):
+    job <span style="color:#f92672">=</span> dict(
+        oper<span style="color:#f92672">=</span>tfim<span style="color:#f92672">.</span>z<span style="color:#f92672">.</span>H_sparse,
+        oper_params<span style="color:#f92672">=</span>oper_params,
+        solver<span style="color:#f92672">=</span>sla<span style="color:#f92672">.</span>eigsh,
+        solver_params<span style="color:#f92672">=</span>{ 
+            <span style="color:#e6db74">&#39;k&#39;</span> : <span style="color:#ae81ff">6</span>, 
+            <span style="color:#e6db74">&#39;which&#39;</span> : <span style="color:#e6db74">&#39;BE&#39;</span>,
+        },
+    )
+    evals, evecs <span style="color:#f92672">=</span> data<span style="color:#f92672">.</span>jobs<span style="color:#f92672">.</span>obtain(<span style="color:#f92672">**</span>job)
+    
+    M <span style="color:#f92672">=</span> basis<span style="color:#f92672">.</span>schmidt<span style="color:#f92672">.</span>matricize(evecs[:, <span style="color:#ae81ff">0</span>], np<span style="color:#f92672">.</span>arange(l), L)
+    res <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>linalg<span style="color:#f92672">.</span>svd(M, full_matrices<span style="color:#f92672">=</span>False)
+    <span style="color:#66d9ef">for</span> k <span style="color:#f92672">in</span> range(<span style="color:#ae81ff">1</span>, <span style="color:#ae81ff">2</span> <span style="color:#f92672">**</span> (L <span style="color:#f92672">//</span> <span style="color:#ae81ff">2</span>) <span style="color:#f92672">+</span> <span style="color:#ae81ff">1</span>, <span style="color:#ae81ff">100</span>):
+        M_rc <span style="color:#f92672">=</span> basis<span style="color:#f92672">.</span>schmidt<span style="color:#f92672">.</span>svd_rc(<span style="color:#f92672">*</span>res, k)
+        v_rc <span style="color:#f92672">=</span> basis<span style="color:#f92672">.</span>schmidt<span style="color:#f92672">.</span>vectorize(M_rc, list(range(l)), L)
+        errors[<span style="color:#e6db74">&#39;k&#39;</span>]<span style="color:#f92672">.</span>append(k)
+        errors[<span style="color:#e6db74">&#39;h&#39;</span>]<span style="color:#f92672">.</span>append(oper_params[<span style="color:#e6db74">&#39;h&#39;</span>])
+        errors[<span style="color:#e6db74">&#39;F&#39;</span>]<span style="color:#f92672">.</span>append(np<span style="color:#f92672">.</span>linalg<span style="color:#f92672">.</span>norm(M <span style="color:#f92672">-</span> M_rc))
+        errors[<span style="color:#e6db74">&#39;E&#39;</span>]<span style="color:#f92672">.</span>append(
+            np<span style="color:#f92672">.</span>inner(v_rc, tfim<span style="color:#f92672">.</span>z<span style="color:#f92672">.</span>H_vec(v_rc, <span style="color:#f92672">**</span>oper_params)) 
+            <span style="color:#f92672">/</span> np<span style="color:#f92672">.</span>linalg<span style="color:#f92672">.</span>norm(v_rc) <span style="color:#f92672">-</span> evals[<span style="color:#ae81ff">0</span>]
+        )
+df <span style="color:#f92672">=</span> pd<span style="color:#f92672">.</span>DataFrame(errors)
+</code></pre></div><pre><code>CPU times: user 23.7 s, sys: 375 ms, total: 24.1 s
+Wall time: 4.12 s
+</code></pre>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">%%</span>capture plot
+h <span style="color:#f92672">=</span> sorted(set(df<span style="color:#f92672">.</span>h))
+fig, ax <span style="color:#f92672">=</span> plt<span style="color:#f92672">.</span>subplots()
+<span style="color:#66d9ef">for</span> s <span style="color:#f92672">in</span> h:
+    ax<span style="color:#f92672">.</span>plot(df<span style="color:#f92672">.</span>F[df<span style="color:#f92672">.</span>h<span style="color:#f92672">==</span>s]<span style="color:#f92672">.</span>values, df<span style="color:#f92672">.</span>E[df<span style="color:#f92672">.</span>h<span style="color:#f92672">==</span>s]<span style="color:#f92672">.</span>values, label<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;$h=$&#39;</span><span style="color:#f92672">+</span>str(s))
+ax<span style="color:#f92672">.</span>set_title(<span style="color:#e6db74">&#39;Truncation error of Schmidt decomposition&#39;</span>)
+ax<span style="color:#f92672">.</span>set_xlabel(<span style="color:#e6db74">&#39;Frobenius distance&#39;</span>)
+ax<span style="color:#f92672">.</span>set_ylabel(<span style="color:#e6db74">&#39;$E_0^k - E_0$&#39;</span>)
+ax<span style="color:#f92672">.</span>legend()
+plt<span style="color:#f92672">.</span>show()
+</code></pre></div><h2 id="results">Results</h2>
+<p>Let&rsquo;s take a look at the ratio of the two error metrics:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">plot<span style="color:#f92672">.</span>show()
+</code></pre></div><p><img src="output_6_0.png" alt="png"></p>
+<p>It appears that for any $h$, the relationship between the two errors is linear.
+For larger values of $h$, the Frobenius distance grows faster than the energy
+gap in the truncation of the ground state, $\Delta E(k) = E_0^k - E_0$.</p>
+<h2 id="discussion">Discussion</h2>
+<p>Based on the plot, $\Delta E(k) &gt; 0$, indicating that truncations never
+attain the minimum energy of the Hamiltonian (barring some possible degeneracies).
+We might want to use this error relation to bound the approximation error
+of schemes like MPS.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">
+</code></pre></div>
+
+
+      
+    </article>
+    
+  </div>
+
+        </div><footer>
+  <div class="container">
+    <p class="credits copyright">
+      <p class="credits theme-by">
+        <a href="https://lxvm.github.io/ph121c/">root</a>
+      </p>
+    </p>
+  </div>
+</footer>
+</body>
+</html>

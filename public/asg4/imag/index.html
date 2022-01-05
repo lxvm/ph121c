@@ -1,0 +1,1098 @@
+<!DOCTYPE html>
+<html lang="en"><meta charset="utf-8" />
+
+  <title>Assignment 4: Part 1 - Lorenzo X. Van Muñoz</title>
+
+
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="stylesheet" href="https://lxvm.github.io/ph121c/css/latex.css" />
+<link rel="stylesheet" href="https://lxvm.github.io/ph121c/css/main.css" />
+<script>
+  MathJax = {
+    tex: {
+      inlineMath: [['$', '$'], ["\\(", "\\)"]]
+    }
+  };
+</script>
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<meta name="generator" content="Hugo 0.80.0" /><body>
+
+
+<header>
+  <div class="intro-header">
+    <div class="container">
+      <div class="asg4-heading">
+        
+          <h1>Assignment 4: Part 1</h1>
+        
+      </div>
+    </div>
+  </div>
+</header>
+
+        <div id="content">
+  <div class="container" role="main">
+    <article class="article" class="blog-post">
+      <div class="postmeta">
+        <span class="meta-post">
+  
+</span>
+
+      </div>
+      <br>
+      <h1 id="imaginary-time-evolution">Imaginary time evolution</h1>
+<p>$
+\require{physics}
+\def\bm{\boldsymbol}
+$</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">from</span> copy <span style="color:#f92672">import</span> deepcopy
+
+<span style="color:#f92672">import</span> numpy <span style="color:#f92672">as</span> np
+<span style="color:#f92672">import</span> pandas <span style="color:#f92672">as</span> pd
+<span style="color:#f92672">from</span> scipy.linalg <span style="color:#f92672">import</span> expm
+<span style="color:#f92672">from</span> scipy.sparse.linalg <span style="color:#f92672">import</span> eigsh
+<span style="color:#f92672">import</span> matplotlib.pyplot <span style="color:#f92672">as</span> plt
+<span style="color:#f92672">%</span>matplotlib inline
+
+<span style="color:#f92672">from</span> ph121c_lxvm <span style="color:#f92672">import</span> tensor, basis, models
+</code></pre></div><h2 id="what-we-are-doing">What we are doing</h2>
+<p>In this assignment there will be simulations of the dynamics of quantum systems
+with local Hamiltonians in the matrix product state (MPS) representation.
+This will be via the Time Evolving Block Decimation (TEBD) algorithm.</p>
+<p>If you&rsquo;re like me and you&rsquo;re learning this for the first time, I looked for help
+on the topic and have created this brief collection of learning materials:</p>
+<ul>
+<li><a href="https://www.mscs.dal.ca/%7Eselinger/papers/graphical-bib/public/Penrose-applications-of-negative-dimensional-tensors.pdfhttps://www.mscs.dal.ca/%7Eselinger/papers/graphical-bib/public/Penrose-applications-of-negative-dimensional-tensors.pdf">Roger Penrose tensor diagram notation (1971)</a></li>
+<li><a href="https://arxiv.org/abs/quant-ph/0310089">Vidal&rsquo;s exposition of TEBD (2004)</a></li>
+<li><a href="https://tensornetwork.org/mps/algorithms/timeevo/tebd.html">Tensor Network TEBD</a></li>
+<li><a href="https://tenpy.github.io/index.html">TeNPy (see <code>literature</code> for more)</a></li>
+<li><a href="https://www.tensors.net/">Help with tensor networks</a></li>
+<li><a href="https://doi.org/10.1103/PhysRevLett.69.2863">White&rsquo;s exposition of DMRG (1992)</a></li>
+</ul>
+<h2 id="overview">Overview</h2>
+<p>In TEBD, we are interested in applying a propagator $U(t)$ to evolve a quantum
+state. In this section, we will use imaginary time evolution of the Hamiltonian:
+$$ U(\tau) = e^{H \tau}, $$
+but next section we will consider real time evolution:
+$$ U(t) = e^{-i H t}. $$
+We will use the following TFIM Hamiltonian with open boundary conditions
+parametrized by $h^x, h^z$:
+$$
+H =
+-\sum_{i=1}^{L-1} \sigma_i^z \sigma_{i+1}^z
+-h^x \sum_{i=1}^L \sigma_i^x
+-h^z \sum_{i=1}^L \sigma_i^z
+.
+$$
+Because the Hamiltonian is 2-local, we can group its terms:
+\begin{align}
+H &amp;=
+-\left( \sum_{i=1}^L h^x \sigma_i^x + h^z \sigma_i^z \right)
+- \left( \sum_{i=1}^{L // 2} \sigma_{2i - 1}^z \sigma_{2i}^z \right)
+- \left( \sum_{i=1}^{L // 2-1+L\%2} \sigma_{2i}^z \sigma_{2i+1}^z \right)
+\\<br>
+&amp;= H_1 + H_2^\text{even} + H_2^\text{odd}
+.
+\end{align}
+Now all of the terms in each group commute, but the groups themselves may not.
+The Zassenhaus formula <a href="https://doi.org/10.1002/cpa.3160070404">(proven here)</a>
+allows a separation of $U(t)$ into a product of matrix exponentials of these
+local terms, grouped in powers of $t$.
+The formula tells us that the lowest order of $t$ in the exponent is given by:
+$$
+U(\tau) =
+e^{H_1 \tau} e^{H_2^\text{even} \tau} e^{H_2^\text{odd} \tau}
+e^{\mathcal O (\tau^2)}
+.
+$$
+Note: the Zassenhaus formula looks like the Baker-Campbell-Hausdorff formula,
+but they group terms differently. The former groups terms in powers of $t$, and
+thus lends itself to perturbative approximations.</p>
+<p>A corollary of the Zassenhaus formula is the Lie product formula:
+$$
+e^{A + B} = \lim_{N \to \infty} \left( e^{A/N} e^{B/N} \right)^N
+.
+$$
+In fact, this result was known as early as 1893 by Sophus Lie, the namesake of
+Lie algebras! Their work is published in ISBN 0828402329 and on the
+<a href="https://archive.org/details/theoriedertrans00liegoog?ref=ol&amp;view=theater">web</a>.
+Thus for some finite $N$, we will are in a good position to make the
+<a href="https://aip.scitation.org/doi/abs/10.1063/1.529425">Suzuki</a>-<a href="https://doi.org/10.1090/S0002-9939-1959-0108732-6">Trotter
+</a> decomposition
+which provides an approximation of the time-evolution operator over a discrete
+number of time steps:
+$$
+U(\tau) \approx
+\left(
+e^{H_1 \tau/N} e^{H_2^\text{even} \tau/N} e^{H_2^\text{odd} \tau/N}
+\right)^N
+.
+$$
+This provides yet another example of how mathematicians have explored areas
+relevant to physics more than a century before their emergence.</p>
+<p>In practice, <strong>this is how we will simulate time evolution of quantum systems</strong>
+on both classical computers (using the MPS representation) <em>and</em> on quantum
+computers by applying the gates on qudits in the same fashion as on the tensor
+network. For higher-order Suzuki-Trotter decompositions,
+<a href="https://arxiv.org/abs/quant-ph/9809009">read this (cited by Vitali)</a>.</p>
+<h2 id="matrix-calculus">Matrix calculus</h2>
+<p>I haven&rsquo;t given you enough details yet to apply this to a tensor network!
+I haven&rsquo;t exponentiated matrices that can be written as Kronecker products.</p>
+<p>In general, matrix exponentials can be calculated in terms of diagonalizing a
+matrix and exponentiating its eigenvalues, or by a power-series representation.
+For a review of matrix exponentials, see these <a href="https://web.mit.edu/18.06/www/Spring17/Matrix-Exponentials.pdf">course notes written by my summer
+research mentor</a>,
+or this <a href="http://www.cs.cornell.edu/cvResearchPDF/19ways+.pdf">paper on many ways of calculating the matrix exponential
+</a>.</p>
+<p>My questions about Kronecker products and matrix exponentials center around
+whether the operations commute: for 1-site operators, 2-site operators?
+Let&rsquo;s begin</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">sx <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>array([[<span style="color:#ae81ff">0</span>, <span style="color:#ae81ff">1</span>], [<span style="color:#ae81ff">1</span>, <span style="color:#ae81ff">0</span>]])
+sy <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>array([[<span style="color:#ae81ff">0</span>, <span style="color:#f92672">-</span><span style="color:#ae81ff">1j</span>], [<span style="color:#ae81ff">1j</span>, <span style="color:#ae81ff">0</span>]])
+sz <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>diag([<span style="color:#ae81ff">1</span>, <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>])
+</code></pre></div><h3 id="two-sites">Two sites</h3>
+<p>For the diagonal matrix $\sigma^z$ we shall see that the matrix exponential and
+Kronecker product do not commute for a 2-site operator:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">expm(np<span style="color:#f92672">.</span>kron(sz, sz))
+</code></pre></div><pre><code>array([[2.71828183, 0.        , 0.        , 0.        ],
+       [0.        , 0.36787944, 0.        , 0.        ],
+       [0.        , 0.        , 0.36787944, 0.        ],
+       [0.        , 0.        , 0.        , 2.71828183]])
+</code></pre>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">np<span style="color:#f92672">.</span>kron(expm(sz), expm(sz))
+</code></pre></div><pre><code>array([[7.3890561 , 0.        , 0.        , 0.        ],
+       [0.        , 1.        , 0.        , 0.        ],
+       [0.        , 0.        , 1.        , 0.        ],
+       [0.        , 0.        , 0.        , 0.13533528]])
+</code></pre>
+<p>Not the same! This means we actually have to exponentiate the matrix, which for
+a diagonal matrix is equivalent to exponentiating the diagonal:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">np<span style="color:#f92672">.</span>exp(np<span style="color:#f92672">.</span>diag(np<span style="color:#f92672">.</span>kron(sz, sz)))
+</code></pre></div><pre><code>array([2.71828183, 0.36787944, 0.36787944, 2.71828183])
+</code></pre>
+<p>The consequence for MPS is that this is not possible to represent as a one-site
+operator, so we will have to contract a virtual index before applying this
+transformation directly. (After, we will again do an SVD to return to MPS form).</p>
+<p>We <em>could</em> represent the matrix product operator as acting on individual sites
+if we take an SVD of it and disaggregating the physical indicies by introducing
+a virtual index. This option might not be viable for diagonal matrices with
+large coefficients (maybe better for random unitaries):</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">np<span style="color:#f92672">.</span>linalg<span style="color:#f92672">.</span>svd(expm(np<span style="color:#f92672">.</span>kron(sz, sz)))
+</code></pre></div><pre><code>(array([[1., 0., 0., 0.],
+        [0., 0., 1., 0.],
+        [0., 0., 0., 1.],
+        [0., 1., 0., 0.]]),
+ array([2.71828183, 2.71828183, 0.36787944, 0.36787944]),
+ array([[1., 0., 0., 0.],
+        [0., 0., 0., 1.],
+        [0., 1., 0., 0.],
+        [0., 0., 1., 0.]]))
+</code></pre>
+<p>That is, if we can write the elements of a 2-site operator $U(t)$ as
+$U_{\sigma'_i \sigma'_{i+1}}^{\sigma_i \sigma_{i+1}}$, then we should reshape
+the matrix so that $U_{\sigma'_i \sigma_i}^{\sigma'_{i+1} \sigma_{i+1}}$
+groups the physical indices by the site. Then we should do an SVD on this matrix
+which will introduce a virtual index $\alpha$, leading to:
+$$
+U_{\sigma'_i \sigma_i}^{\sigma'_{i+1} \sigma_{i+1}}
+= \sum_\alpha U_{\sigma'_i \sigma_i}^\alpha
+S_\alpha^\alpha (V^\dagger)_{\alpha}^{\sigma'_{i+1} \sigma_{i+1}}
+.
+$$
+We should then reshape
+$U_{\sigma'_i \sigma_i}^\alpha \to U_{\sigma'_i}^{\sigma_i \alpha}$ and
+$(V^\dagger)_{\alpha}^{\sigma'_{i+1} \sigma_{i+1}}
+\to (V^\dagger)_{\alpha \sigma'_{i+1}}^{\sigma_{i+1}}$
+so that we can apply these operators to the physical indices as a matrix
+multiplication. This opens the door to matrix product operators, which have very
+similar properties as MPS, except for the additional physical index.</p>
+<h3 id="one-site">One site</h3>
+<h4 id="diagonal-matrix">Diagonal matrix</h4>
+<p>We shall see that for a 1-site operator, the matrix exponential commutes with
+a Kronecker product by the identity:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">expm(np<span style="color:#f92672">.</span>kron(np<span style="color:#f92672">.</span>eye(<span style="color:#ae81ff">2</span>), sz))
+</code></pre></div><pre><code>array([[2.71828183, 0.        , 0.        , 0.        ],
+       [0.        , 0.36787944, 0.        , 0.        ],
+       [0.        , 0.        , 2.71828183, 0.        ],
+       [0.        , 0.        , 0.        , 0.36787944]])
+</code></pre>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">np<span style="color:#f92672">.</span>kron(np<span style="color:#f92672">.</span>eye(<span style="color:#ae81ff">2</span>), expm(sz))
+</code></pre></div><pre><code>array([[2.71828183, 0.        , 0.        , 0.        ],
+       [0.        , 0.36787944, 0.        , 0.        ],
+       [0.        , 0.        , 2.71828183, 0.        ],
+       [0.        , 0.        , 0.        , 0.36787944]])
+</code></pre>
+<h4 id="non-diagonal-matrix">Non-diagonal matrix</h4>
+<p>For the off-diagonal matrix $\sigma^x$, the operations still commute across
+Kronecker products with the identity:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">expm(np<span style="color:#f92672">.</span>kron(np<span style="color:#f92672">.</span>eye(<span style="color:#ae81ff">2</span>), sx))
+</code></pre></div><pre><code>array([[1.54308063, 1.17520119, 0.        , 0.        ],
+       [1.17520119, 1.54308063, 0.        , 0.        ],
+       [0.        , 0.        , 1.54308063, 1.17520119],
+       [0.        , 0.        , 1.17520119, 1.54308063]])
+</code></pre>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">np<span style="color:#f92672">.</span>kron(np<span style="color:#f92672">.</span>eye(<span style="color:#ae81ff">2</span>), expm(sx))
+</code></pre></div><pre><code>array([[1.54308063, 1.17520119, 0.        , 0.        ],
+       [1.17520119, 1.54308063, 0.        , 0.        ],
+       [0.        , 0.        , 1.54308063, 1.17520119],
+       [0.        , 0.        , 1.17520119, 1.54308063]])
+</code></pre>
+<p>All in all, this means we can time-evolve local operators efficiently by
+calculating their matrix exponentials locally.</p>
+<p>Since in fact $\sigma^x$ is related to $\sigma^z$ by a Hadamard rotation. $T$,
+we can compute:
+$$
+\exp(\phi \sigma^x)
+= \exp(\phi T \sigma^z T)
+= T \exp(\phi \sigma^z) T
+.
+$$
+Let&rsquo;s demonstrate:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">hd <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>array([[<span style="color:#ae81ff">1</span>, <span style="color:#ae81ff">1</span>], [<span style="color:#ae81ff">1</span>, <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>]]) <span style="color:#f92672">*</span> np<span style="color:#f92672">.</span>sqrt(<span style="color:#ae81ff">0.5</span>)
+</code></pre></div><div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">expm(sx)
+</code></pre></div><pre><code>array([[1.54308063, 1.17520119],
+       [1.17520119, 1.54308063]])
+</code></pre>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">expm(hd <span style="color:#960050;background-color:#1e0010">@</span> sz <span style="color:#960050;background-color:#1e0010">@</span> hd)
+</code></pre></div><pre><code>array([[1.54308063, 1.17520119],
+       [1.17520119, 1.54308063]])
+</code></pre>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">hd <span style="color:#960050;background-color:#1e0010">@</span> expm(sz) <span style="color:#960050;background-color:#1e0010">@</span> hd
+</code></pre></div><pre><code>array([[1.54308063, 1.17520119],
+       [1.17520119, 1.54308063]])
+</code></pre>
+<p>We might prefer to use the result in the assignment that for a 1-site operator:
+$$
+\exp(i t \bm n \cdot \bm \sigma)
+= \cos(t) + i \sin(t) \bm n \cdot \bm \sigma
+.
+$$
+For imaginary time evolution:
+$$
+\exp(\tau \bm n \cdot \bm \sigma)
+= \cos(-i \tau) + i \sin(-i \tau) \bm n \cdot \bm \sigma
+= \cosh(\tau) + \sinh(\tau) \bm n \cdot \bm \sigma
+.
+$$</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#75715e"># Verify formula expontentiation formulas</span>
+hx, hz <span style="color:#f92672">=</span> <span style="color:#ae81ff">1.05</span>, <span style="color:#ae81ff">0.5</span>
+hn <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>sqrt(hx <span style="color:#f92672">**</span> <span style="color:#ae81ff">2</span> <span style="color:#f92672">+</span> hz <span style="color:#f92672">**</span> <span style="color:#ae81ff">2</span>)
+np<span style="color:#f92672">.</span>allclose(
+    expm((hx <span style="color:#f92672">*</span> sx <span style="color:#f92672">+</span> hz <span style="color:#f92672">*</span> sz) <span style="color:#f92672">/</span> hn),
+    np<span style="color:#f92672">.</span>cosh(<span style="color:#ae81ff">1</span>) <span style="color:#f92672">*</span> np<span style="color:#f92672">.</span>eye(<span style="color:#ae81ff">2</span>) <span style="color:#f92672">+</span> np<span style="color:#f92672">.</span>sinh(<span style="color:#ae81ff">1</span>) <span style="color:#f92672">*</span> ((hx <span style="color:#f92672">*</span> sx <span style="color:#f92672">+</span> hz <span style="color:#f92672">*</span> sz) <span style="color:#f92672">/</span> hn)
+)
+</code></pre></div><pre><code>True
+</code></pre>
+<h2 id="action">Action</h2>
+<p>At this stage, I have layed out the Suzuki-Trotter decomposition as well as how
+to represent the gates within each term, so we can go ahead and do TEBD.
+We are told to evolve a ferromagnetic state:
+\begin{align}
+\ket{\psi (t=0)}
+&amp;= \ket{\downarrow} \otimes \cdots \otimes \ket{\downarrow}
+,
+\\<br>
+\ket{\phi (t=0)}
+&amp;= \ket{\uparrow} \otimes \cdots \otimes \ket{\uparrow}
+.
+\end{align}</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">L  <span style="color:#f92672">=</span> <span style="color:#ae81ff">12</span>
+d  <span style="color:#f92672">=</span> <span style="color:#ae81ff">2</span>
+hx <span style="color:#f92672">=</span> <span style="color:#ae81ff">1.05</span>
+hz <span style="color:#f92672">=</span> <span style="color:#ae81ff">0.5</span>
+</code></pre></div><div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">down <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>array([<span style="color:#ae81ff">1.</span>, <span style="color:#ae81ff">0.</span>])<span style="color:#f92672">.</span>reshape(<span style="color:#ae81ff">2</span>, <span style="color:#ae81ff">1</span>)
+up   <span style="color:#f92672">=</span> down[::<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>]<span style="color:#f92672">.</span>reshape((<span style="color:#ae81ff">2</span>, <span style="color:#ae81ff">1</span>))
+
+<span style="color:#75715e"># build wavefunction in MPS representation</span>
+<span style="color:#960050;background-color:#1e0010">ψ</span> <span style="color:#f92672">=</span> tensor<span style="color:#f92672">.</span>mps(L<span style="color:#f92672">=</span>L, d<span style="color:#f92672">=</span>d)
+<span style="color:#960050;background-color:#1e0010">ψ</span><span style="color:#f92672">.</span>from_arr([ down <span style="color:#66d9ef">for</span> _ <span style="color:#f92672">in</span> range(L) ], center<span style="color:#f92672">=-</span><span style="color:#ae81ff">1</span>)
+<span style="color:#960050;background-color:#1e0010">ϕ</span> <span style="color:#f92672">=</span> tensor<span style="color:#f92672">.</span>mps(L<span style="color:#f92672">=</span>L, d<span style="color:#f92672">=</span>d)
+<span style="color:#960050;background-color:#1e0010">ϕ</span><span style="color:#f92672">.</span>from_arr([ up <span style="color:#66d9ef">for</span> _ <span style="color:#f92672">in</span> range(L) ], center<span style="color:#f92672">=-</span><span style="color:#ae81ff">1</span>)
+</code></pre></div><p>We are asked to calculate the energy of this state which requires a Hamiltonian.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">sx <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>diag([<span style="color:#ae81ff">1.</span>, <span style="color:#ae81ff">1.</span>])[::<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>]
+sz <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>diag([<span style="color:#ae81ff">1.</span>,<span style="color:#f92672">-</span><span style="color:#ae81ff">1.</span>])
+
+<span style="color:#75715e"># Build pieces of Hamiltonian in gate representation</span>
+<span style="color:#66d9ef">def</span> <span style="color:#a6e22e">build_pieces_of_H</span> (L, d, hx, hz):
+    <span style="color:#e6db74">&#34;&#34;&#34;Build the field, odd, and even term Hamiltonians and also their union.&#34;&#34;&#34;</span>
+    H_field <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>empty(L, dtype<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;O&#39;</span>)
+    <span style="color:#66d9ef">for</span> i <span style="color:#f92672">in</span> range(H_field<span style="color:#f92672">.</span>size):
+        H_field[i] <span style="color:#f92672">=</span> tensor<span style="color:#f92672">.</span>mpo(L<span style="color:#f92672">=</span>L, d<span style="color:#f92672">=</span>d)
+        H_field[i]<span style="color:#f92672">.</span>set_local_oper(<span style="color:#f92672">-</span>(hx <span style="color:#f92672">*</span> sx <span style="color:#f92672">+</span> hz <span style="color:#f92672">*</span> sz), i <span style="color:#f92672">+</span> <span style="color:#ae81ff">1</span>)
+    H_odd <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>empty(L<span style="color:#f92672">//</span><span style="color:#ae81ff">2</span>, dtype<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;O&#39;</span>)
+    <span style="color:#66d9ef">for</span> i <span style="color:#f92672">in</span> range(H_odd<span style="color:#f92672">.</span>size):
+        H_odd[i] <span style="color:#f92672">=</span> tensor<span style="color:#f92672">.</span>mpo(L<span style="color:#f92672">=</span>L, d<span style="color:#f92672">=</span>d)
+        H_odd[i]<span style="color:#f92672">.</span>set_local_oper(<span style="color:#f92672">-</span>sz, <span style="color:#ae81ff">2</span><span style="color:#f92672">*</span>i <span style="color:#f92672">+</span> <span style="color:#ae81ff">1</span>)
+        H_odd[i]<span style="color:#f92672">.</span>set_local_oper(sz, <span style="color:#ae81ff">2</span><span style="color:#f92672">*</span>i <span style="color:#f92672">+</span> <span style="color:#ae81ff">1</span> <span style="color:#f92672">+</span> <span style="color:#ae81ff">1</span>)
+    H_even <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>empty(L<span style="color:#f92672">//</span><span style="color:#ae81ff">2</span> <span style="color:#f92672">-</span> <span style="color:#ae81ff">1</span> <span style="color:#f92672">+</span> L<span style="color:#f92672">%</span><span style="color:#ae81ff">2</span>, dtype<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;O&#39;</span>)
+    <span style="color:#66d9ef">for</span> i <span style="color:#f92672">in</span> range(H_even<span style="color:#f92672">.</span>size):
+        H_even[i] <span style="color:#f92672">=</span> tensor<span style="color:#f92672">.</span>mpo(L<span style="color:#f92672">=</span>L, d<span style="color:#f92672">=</span>d)
+        H_even[i]<span style="color:#f92672">.</span>set_local_oper(<span style="color:#f92672">-</span>sz, <span style="color:#ae81ff">2</span><span style="color:#f92672">*</span>(i <span style="color:#f92672">+</span> <span style="color:#ae81ff">1</span>))
+        H_even[i]<span style="color:#f92672">.</span>set_local_oper(sz, <span style="color:#ae81ff">2</span><span style="color:#f92672">*</span>(i <span style="color:#f92672">+</span> <span style="color:#ae81ff">1</span>) <span style="color:#f92672">+</span> <span style="color:#ae81ff">1</span>)
+    H_full <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>array([<span style="color:#f92672">*</span>H_field, <span style="color:#f92672">*</span>H_odd, <span style="color:#f92672">*</span>H_even], dtype<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;O&#39;</span>)
+    <span style="color:#66d9ef">return</span> (H_field, H_odd, H_even, H_full)
+</code></pre></div><div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">H_field, H_odd, H_even, H_full <span style="color:#f92672">=</span> build_pieces_of_H(L<span style="color:#f92672">=</span>L, d<span style="color:#f92672">=</span>d, hx<span style="color:#f92672">=</span>hx, hz<span style="color:#f92672">=</span>hz)
+</code></pre></div><div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#66d9ef">for</span> name, wave <span style="color:#f92672">in</span> [(<span style="color:#e6db74">&#39;psi&#39;</span>, <span style="color:#960050;background-color:#1e0010">ψ</span>), (<span style="color:#e6db74">&#39;phi&#39;</span>, <span style="color:#960050;background-color:#1e0010">ϕ</span>)]:
+    <span style="color:#66d9ef">print</span>(<span style="color:#e6db74">&#39;MPS Energy of&#39;</span>, name, sum(e<span style="color:#f92672">.</span>expval(wave) <span style="color:#66d9ef">for</span> e <span style="color:#f92672">in</span> H_full))
+</code></pre></div><pre><code>MPS Energy of psi -17.0
+MPS Energy of phi -5.0
+</code></pre>
+<p>As a verification, let&rsquo;s compare this to the direct calculation from the Hamiltonian.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#960050;background-color:#1e0010">ψ</span><span style="color:#f92672">.</span>merge_bonds()
+<span style="color:#960050;background-color:#1e0010">ψ</span><span style="color:#f92672">.</span>reset_pos()
+psic <span style="color:#f92672">=</span> <span style="color:#960050;background-color:#1e0010">ψ</span>[<span style="color:#ae81ff">0</span>]<span style="color:#f92672">.</span>mat<span style="color:#f92672">.</span>reshape(<span style="color:#960050;background-color:#1e0010">ψ</span><span style="color:#f92672">.</span>size())
+np<span style="color:#f92672">.</span>inner(psic, models<span style="color:#f92672">.</span>tfim_z<span style="color:#f92672">.</span>H_vec(psic, L, hx, <span style="color:#e6db74">&#39;o&#39;</span>, hz))
+</code></pre></div><pre><code>-17.0
+</code></pre>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#960050;background-color:#1e0010">ϕ</span><span style="color:#f92672">.</span>merge_bonds()
+<span style="color:#960050;background-color:#1e0010">ϕ</span><span style="color:#f92672">.</span>reset_pos()
+phic <span style="color:#f92672">=</span> <span style="color:#960050;background-color:#1e0010">ϕ</span>[<span style="color:#ae81ff">0</span>]<span style="color:#f92672">.</span>mat<span style="color:#f92672">.</span>reshape(<span style="color:#960050;background-color:#1e0010">ϕ</span><span style="color:#f92672">.</span>size())
+np<span style="color:#f92672">.</span>inner(phic, models<span style="color:#f92672">.</span>tfim_z<span style="color:#f92672">.</span>H_vec(phic, L, hx, <span style="color:#e6db74">&#39;o&#39;</span>, hz))
+</code></pre></div><pre><code>-5.0
+</code></pre>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#75715e"># Restore MPS compression to these product states</span>
+<span style="color:#960050;background-color:#1e0010">ψ</span><span style="color:#f92672">.</span>split_quanta(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>, trim <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>)
+<span style="color:#960050;background-color:#1e0010">ϕ</span><span style="color:#f92672">.</span>split_quanta(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>, trim <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>)
+</code></pre></div><h3 id="implementation">Implementation</h3>
+<p>Somehow, my code was influenced by the interface to the Julia
+<a href="https://itensor.org/">ITensor</a> package. I haven&rsquo;t used the package, but
+seeing that in their code they define everything in terms of indices
+and operations on them convinced me I should write classes which do the
+same. Keeping track of indices is a pain, so reducing everything to index
+operations on my MPS representation (which is basically a list of matrices,
+where each matrix has a multiindex for both rows and columns) hopefully
+makes algorithms less difficult to program when the essential methods work.</p>
+<p>In order to do this, I made many backwards-incompatible changes to my
+previous MPS code, which was rather simple to begin with.
+Now, there is a TON of stuff going on under the hood to provide a composable
+set of elementary tensor operations that are abstracted away from the storage
+and representation details of the tensors themselves.
+The basic problems are: how do you keep track of a set of indices as a data
+structure, and how to you selectively operate on these indices with operations
+such as contractions, reshapes, and reorderings.
+A lot of this comes down to giving bonds pointers to sites.
+When these tasks can, to some extent, be automated, then they open the door
+to splitting multi-indices with SVD&rsquo;s, to MPS canonical forms, and to tensor
+network contractions.
+The icing on the cake, so to speak, is taking these operations and composing
+them into algorithms for quantum simulation, such as TEBD, which we are about to
+undertake, as well as DMRG (maybe next time?).
+The difficulty of these algorithms is in applying gates repeatedly to different
+groups of indices, creating a lot of book-keeping.
+There are <em>a lot</em> of books to keep.</p>
+<p>To be clear, there is no attempt to optimize code, mainly just a framework for
+matrix operations where the row and column indices are replaced by multiindices.
+It maybe succeeds in reducing code repetition when actually expressing algorithms.
+For the programmer, the price of abstraction is payed by usability.
+I want to be able to apply an operator on a specific set of indices without
+having to manually manipulate the matrices each time I do an experiment.</p>
+<p>I also started to 1-index the sites in the tensor trains, which is bound to
+create confusion!</p>
+<h3 id="greatest-achievement-of-this-course">Greatest achievement of this course</h3>
+<p>The following function is the greatest function I&rsquo;ve written:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">multi_index_perm</span> (dims, perm):
+    <span style="color:#e6db74">&#34;&#34;&#34;Return a slice to permute a multi-index in the computational basis.
+</span><span style="color:#e6db74">    
+</span><span style="color:#e6db74">    `dims` and `perm` enumerate 0 to N-1 as the fastest-changing dit to slowest.
+</span><span style="color:#e6db74">    E.g. perm = np.arange(N) is the identity permutation.
+</span><span style="color:#e6db74">
+</span><span style="color:#e6db74">    Arguments:
+</span><span style="color:#e6db74">    dims :: np.ndarray(N) :: dimensions of each index
+</span><span style="color:#e6db74">    perm :: np.ndarray(N) :: perm[i] gives the new position of i
+</span><span style="color:#e6db74">    &#34;&#34;&#34;</span>
+    <span style="color:#66d9ef">assert</span> dims<span style="color:#f92672">.</span>size <span style="color:#f92672">==</span> perm<span style="color:#f92672">.</span>size
+    iperm <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>argsort(perm)
+    new_dims <span style="color:#f92672">=</span> dims[iperm]
+    index <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>zeros(np<span style="color:#f92672">.</span>prod(dims), dtype<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;int64&#39;</span>)
+    <span style="color:#66d9ef">for</span> i <span style="color:#f92672">in</span> range(len(dims)):
+        index <span style="color:#f92672">+=</span> np<span style="color:#f92672">.</span>tile(
+            np<span style="color:#f92672">.</span>repeat(
+                np<span style="color:#f92672">.</span>prod(dims[:iperm[i]], dtype<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;int64&#39;</span>)
+                <span style="color:#f92672">*</span> np<span style="color:#f92672">.</span>arange(dims[iperm[i]]),
+                repeats<span style="color:#f92672">=</span>np<span style="color:#f92672">.</span>prod(new_dims[:i], dtype<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;int64&#39;</span>)
+            ),
+            reps<span style="color:#f92672">=</span>np<span style="color:#f92672">.</span>prod(new_dims[i<span style="color:#f92672">+</span><span style="color:#ae81ff">1</span>:], dtype<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;int64&#39;</span>)
+        )
+    <span style="color:#66d9ef">return</span> index
+</code></pre></div><p>It performs any arbitrary permutation of a multi-index (with any dimensions).
+It&rsquo;s great to have this function because it gives unlimited flexibility in the
+manipulation of indices within a multi-index in order to sort indices after
+sophisticated tensor manipulations.
+Whoever uses this function has to be highly aware of the issue of endianness,
+which I believe asserts itself in both the order of the array <code>dims</code> as well as
+the order of <code>np.tile</code> and <code>np.repeat</code>.
+This function generalizes <code>ph121c_lxvm.basis.schmidt.permute</code>, which can only
+be applied to multi-indices where each index has dimension 2, which was useful
+earlier for qubit chains, but cannot be generalized because its algorithm is
+based on bit swaps, and bit indices always have dimension 2.
+The function is great because it works: it is the endgame of indices.</p>
+<p>I have no idea if <code>np.ravel_multi_index</code> does the same thing: I suspect it
+doesn&rsquo;t. In principle, this function should overcome the limitations imposed
+by the maximal <code>ndim</code> set by <code>numpy</code>, though of course too many dimensions will
+lead to dangerously large arrays.</p>
+<p>Here is an example of how to create and invert a permutation with both methods:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">tensor<span style="color:#f92672">.</span>multi_index_perm(
+    np<span style="color:#f92672">.</span>array([<span style="color:#ae81ff">2</span>,<span style="color:#ae81ff">2</span>,<span style="color:#ae81ff">2</span>,<span style="color:#ae81ff">2</span>,<span style="color:#ae81ff">2</span>,<span style="color:#ae81ff">2</span>]),
+    np<span style="color:#f92672">.</span>array([<span style="color:#ae81ff">5</span>,<span style="color:#ae81ff">2</span>,<span style="color:#ae81ff">0</span>,<span style="color:#ae81ff">3</span>,<span style="color:#ae81ff">1</span>,<span style="color:#ae81ff">4</span>])
+)[tensor<span style="color:#f92672">.</span>multi_index_perm(
+    np<span style="color:#f92672">.</span>array([<span style="color:#ae81ff">2</span>,<span style="color:#ae81ff">2</span>,<span style="color:#ae81ff">2</span>,<span style="color:#ae81ff">2</span>,<span style="color:#ae81ff">2</span>,<span style="color:#ae81ff">2</span>]),
+    np<span style="color:#f92672">.</span>array([<span style="color:#ae81ff">2</span>,<span style="color:#ae81ff">4</span>,<span style="color:#ae81ff">1</span>,<span style="color:#ae81ff">3</span>,<span style="color:#ae81ff">5</span>,<span style="color:#ae81ff">0</span>])
+)]
+</code></pre></div><pre><code>array([ 0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16,
+       17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33,
+       34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50,
+       51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63])
+</code></pre>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">basis<span style="color:#f92672">.</span>schmidt<span style="color:#f92672">.</span>permute(
+    basis<span style="color:#f92672">.</span>schmidt<span style="color:#f92672">.</span>permute(
+        np<span style="color:#f92672">.</span>arange(<span style="color:#ae81ff">64</span>), [], <span style="color:#ae81ff">6</span>, perm<span style="color:#f92672">=</span>np<span style="color:#f92672">.</span>array([<span style="color:#ae81ff">5</span>,<span style="color:#ae81ff">2</span>,<span style="color:#ae81ff">0</span>,<span style="color:#ae81ff">3</span>,<span style="color:#ae81ff">1</span>,<span style="color:#ae81ff">4</span>])
+    ), [], <span style="color:#ae81ff">6</span>, perm<span style="color:#f92672">=</span>np<span style="color:#f92672">.</span>array([<span style="color:#ae81ff">2</span>,<span style="color:#ae81ff">4</span>,<span style="color:#ae81ff">1</span>,<span style="color:#ae81ff">3</span>,<span style="color:#ae81ff">5</span>,<span style="color:#ae81ff">0</span>])
+)
+</code></pre></div><pre><code>array([ 0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16,
+       17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33,
+       34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50,
+       51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63])
+</code></pre>
+<h3 id="everything-else">Everything else</h3>
+<p>If you read the source code in <code>ph121c_lxvm.tensor</code>, you might think that it is
+disgusting, and I would agree with you. The code mainly enforces the topology of
+a tensor network and automates operations on the network. Should it be 10 lines
+of code? Probably. It&rsquo;s over 1500.</p>
+<p>Also, Python does not have a compiler that enforces types, so it is up to the
+programmer to enforce type stability.
+For me, that meant writing code in a LBYL (look before you leap) style, whereas
+some Python code is better in the EAFP (it’s easier to ask for forgiveness than
+permission) style.</p>
+<p>The structure of the <code>tensor</code> module is the following: an <code>index</code> class is defined
+by subclassing <code>collections.UserList</code> and adding two attributes and some methods.
+Then <code>multi_index</code>, <code>bond</code>, and <code>quanta</code> are subclasses of <code>index</code> and they
+enforce some restrictions of the types of elements and attributes in the index.
+Separately, the <code>site</code> type is a collection of a <code>np.ndarray</code> with <code>ndim=2</code> and
+a <code>multi_index</code> of two <code>multi_index</code>es representing the row and column indices.
+The <code>site</code> implements SVD, contraction, and sorting operations on the matrix indices.
+Then the <code>train</code> type is a <code>UserList</code> of <code>site</code>s with methods to manipulate these.
+Lastly, <code>mps</code> and <code>mpo</code> are subclasses of <code>train</code> with particular methods.</p>
+<p>I&rsquo;ll also mention that preserving the topology of the network (i.e. pointers between sites)
+during operations which involve not in-place operations such as contractions
+requires a bit of wizardry to keep the references altogether.
+The process behaves a fair bit like DNA replication.</p>
+<p><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/1/18/Eukaryotic_DNA_replication.svg/800px-Eukaryotic_DNA_replication.svg.pnghttps://upload.wikimedia.org/wikipedia/commons/thumb/1/18/Eukaryotic_DNA_replication.svg/800px-Eukaryotic_DNA_replication.svg.png" alt="replication"></p>
+<p>I only implemented some things this way because the <code>deepcopy</code> function in the <code>copy</code> module apparently knows how to do this correctly.</p>
+<p>By the way, the module I wrote is neither complete nor robust.
+You cannot yet compose things as I had hoped for, but hopefully
+time evolution should work reliably</p>
+<h3 id="direct-approach">Direct approach</h3>
+<p>We will apply the gates in the Hamiltonian directly, which necessitates
+regrouping the physical indices into sites which match the gates.</p>
+<p>We will first exponentiate each group in the Hamiltonian</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#75715e"># Construct propagators</span>
+<span style="color:#66d9ef">def</span> <span style="color:#a6e22e">build_propagators</span> (L, d, <span style="color:#960050;background-color:#1e0010">δτ</span>, H_field, H_odd, H_even):
+    <span style="color:#e6db74">&#34;&#34;&#34;Exponentiate each non-commuting piece of the Hamiltonian&#34;&#34;&#34;</span>
+    U_field <span style="color:#f92672">=</span> tensor<span style="color:#f92672">.</span>mpo(L<span style="color:#f92672">=</span>L, d<span style="color:#f92672">=</span>d)
+    <span style="color:#66d9ef">for</span> i, e <span style="color:#f92672">in</span> enumerate(H_field):
+        U_field<span style="color:#f92672">.</span>set_local_oper(expm(<span style="color:#f92672">-</span><span style="color:#960050;background-color:#1e0010">δτ</span> <span style="color:#f92672">*</span> e[<span style="color:#ae81ff">0</span>]<span style="color:#f92672">.</span>mat), i<span style="color:#f92672">+</span><span style="color:#ae81ff">1</span>)
+    U_odd <span style="color:#f92672">=</span> tensor<span style="color:#f92672">.</span>mpo(L<span style="color:#f92672">=</span>L, d<span style="color:#f92672">=</span>d)
+    <span style="color:#66d9ef">for</span> i, e <span style="color:#f92672">in</span> enumerate(H_odd):
+        U_odd<span style="color:#f92672">.</span>set_local_oper(
+            expm(<span style="color:#f92672">-</span><span style="color:#960050;background-color:#1e0010">δτ</span> <span style="color:#f92672">*</span> np<span style="color:#f92672">.</span>kron(e[<span style="color:#ae81ff">1</span>]<span style="color:#f92672">.</span>mat, e[<span style="color:#ae81ff">0</span>]<span style="color:#f92672">.</span>mat)),
+            <span style="color:#ae81ff">2</span> <span style="color:#f92672">*</span> i <span style="color:#f92672">+</span> <span style="color:#ae81ff">1</span>
+        )
+    U_even <span style="color:#f92672">=</span> tensor<span style="color:#f92672">.</span>mpo(L<span style="color:#f92672">=</span>L, d<span style="color:#f92672">=</span>d)
+    <span style="color:#66d9ef">for</span> i, e <span style="color:#f92672">in</span> enumerate(H_even):
+        U_even<span style="color:#f92672">.</span>set_local_oper(
+            expm(<span style="color:#f92672">-</span><span style="color:#960050;background-color:#1e0010">δτ</span> <span style="color:#f92672">*</span> np<span style="color:#f92672">.</span>kron(e[<span style="color:#ae81ff">1</span>]<span style="color:#f92672">.</span>mat, e[<span style="color:#ae81ff">0</span>]<span style="color:#f92672">.</span>mat)),
+            <span style="color:#ae81ff">2</span> <span style="color:#f92672">*</span> (i <span style="color:#f92672">+</span> <span style="color:#ae81ff">1</span>)
+        )
+    <span style="color:#66d9ef">return</span> (U_field, U_odd, U_even)
+</code></pre></div><p>Let&rsquo;s evolve imaginary time</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">L  <span style="color:#f92672">=</span> <span style="color:#ae81ff">12</span>
+d  <span style="color:#f92672">=</span> <span style="color:#ae81ff">2</span>
+hx <span style="color:#f92672">=</span> <span style="color:#ae81ff">1.05</span>
+hz <span style="color:#f92672">=</span> <span style="color:#ae81ff">0.5</span>
+<span style="color:#960050;background-color:#1e0010">δτ</span> <span style="color:#f92672">=</span> <span style="color:#ae81ff">0.1</span>
+</code></pre></div><div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">%%</span>time
+<span style="color:#75715e"># States</span>
+wave <span style="color:#f92672">=</span> deepcopy(<span style="color:#960050;background-color:#1e0010">ψ</span>)
+cave <span style="color:#f92672">=</span> deepcopy(<span style="color:#960050;background-color:#1e0010">ϕ</span>)
+<span style="color:#75715e"># Max rank</span>
+chi <span style="color:#f92672">=</span> <span style="color:#ae81ff">16</span>
+<span style="color:#75715e"># Operators</span>
+H_field, H_odd, H_even, H_full <span style="color:#f92672">=</span> build_pieces_of_H(L<span style="color:#f92672">=</span>L, d<span style="color:#f92672">=</span>d, hx<span style="color:#f92672">=</span>hx, hz<span style="color:#f92672">=</span>hz)
+U_field, U_odd, U_even <span style="color:#f92672">=</span> build_propagators(
+    L<span style="color:#f92672">=</span>L, d<span style="color:#f92672">=</span>d, <span style="color:#960050;background-color:#1e0010">δτ</span><span style="color:#f92672">=</span><span style="color:#960050;background-color:#1e0010">δτ</span>, H_field<span style="color:#f92672">=</span>H_field, H_odd<span style="color:#f92672">=</span>H_odd, H_even<span style="color:#f92672">=</span>H_even
+)
+<span style="color:#75715e"># Results</span>
+<span style="color:#960050;background-color:#1e0010">ψ</span>_energies <span style="color:#f92672">=</span> [sum(e<span style="color:#f92672">.</span>expval(wave) <span style="color:#66d9ef">for</span> e <span style="color:#f92672">in</span> H_full)]
+<span style="color:#960050;background-color:#1e0010">ϕ</span>_energies <span style="color:#f92672">=</span> [sum(e<span style="color:#f92672">.</span>expval(cave) <span style="color:#66d9ef">for</span> e <span style="color:#f92672">in</span> H_full)]
+<span style="color:#75715e"># TEBD pattern</span>
+Nstp <span style="color:#f92672">=</span> <span style="color:#ae81ff">10</span>
+<span style="color:#66d9ef">for</span> _ <span style="color:#f92672">in</span> range(Nstp):
+    <span style="color:#66d9ef">for</span> e <span style="color:#f92672">in</span> [U_field, U_even, U_odd]:
+        e<span style="color:#f92672">.</span>oper(wave, inplace<span style="color:#f92672">=</span>True)
+    wave<span style="color:#f92672">.</span>trim_bonds(chi)
+    wave<span style="color:#f92672">.</span>normalize()
+    <span style="color:#960050;background-color:#1e0010">ψ</span>_energies<span style="color:#f92672">.</span>append(sum(e<span style="color:#f92672">.</span>expval(wave) <span style="color:#66d9ef">for</span> e <span style="color:#f92672">in</span> H_full))
+<span style="color:#66d9ef">for</span> _ <span style="color:#f92672">in</span> range(Nstp):
+    <span style="color:#66d9ef">for</span> e <span style="color:#f92672">in</span> [U_field, U_even, U_odd]:
+        e<span style="color:#f92672">.</span>oper(cave, inplace<span style="color:#f92672">=</span>True)
+    cave<span style="color:#f92672">.</span>trim_bonds(chi)
+    cave<span style="color:#f92672">.</span>normalize()
+    <span style="color:#960050;background-color:#1e0010">ϕ</span>_energies<span style="color:#f92672">.</span>append(sum(e<span style="color:#f92672">.</span>expval(cave) <span style="color:#66d9ef">for</span> e <span style="color:#f92672">in</span> H_full))
+</code></pre></div><pre><code>CPU times: user 2min 23s, sys: 1.75 s, total: 2min 25s
+Wall time: 27 s
+</code></pre>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#75715e"># Hamiltonian system: energy should be conserved</span>
+plt<span style="color:#f92672">.</span>plot(<span style="color:#960050;background-color:#1e0010">ψ</span>_energies, label<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;$\psi$&#39;</span>)
+plt<span style="color:#f92672">.</span>plot(<span style="color:#960050;background-color:#1e0010">ϕ</span>_energies, label<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;$\phi$&#39;</span>)
+plt<span style="color:#f92672">.</span>xlabel(f<span style="color:#e6db74">&#39;Number of imaginary time steps at size {δτ}&#39;</span>)
+plt<span style="color:#f92672">.</span>ylabel(<span style="color:#e6db74">&#39;Expectation value of Hamiltonian&#39;</span>)
+plt<span style="color:#f92672">.</span>legend()
+plt<span style="color:#f92672">.</span>show()
+</code></pre></div><p><img src="output_50_0.png" alt="png"></p>
+<p>Simulation worked!
+The states are loosing energy and converging to the ground state.
+We&rsquo;ll come back to this after the next section to do some physics.</p>
+<h3 id="mpo-approach">MPO approach</h3>
+<p>Here I outline the approach I described that was relayed to me by Gil.
+There is also an excellent explanation of this on the Tensor Network website.</p>
+<p>Start by taking the set of operators, splitting them, stacking them.
+Then do TEBD my applying the stacked operator.
+Potentially the bond dimension is larger than in the other case,
+but analytically it should be the same.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">U_field<span style="color:#f92672">.</span>split_quanta(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>)
+U_odd<span style="color:#f92672">.</span>split_quanta(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>)
+U_even<span style="color:#f92672">.</span>split_quanta(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>)
+U_full <span style="color:#f92672">=</span> U_field<span style="color:#f92672">.</span>oper(U_odd<span style="color:#f92672">.</span>oper(U_even))
+</code></pre></div><pre><code>---------------------------------------------------------------------------
+
+ValueError                                Traceback (most recent call last)
+
+&lt;ipython-input-31-a23f6b796b43&gt; in &lt;module&gt;
+      2 U_odd.split_quanta(-1)
+      3 U_even.split_quanta(-1)
+----&gt; 4 U_full = U_field.oper(U_odd.oper(U_even))
+
+
+~/Documents/repos/ph121c/ph121c_lxvm/ph121c_lxvm/tensor/mpo.py in oper(self, tren, inplace)
+    166         for i in range(len(self)):
+    167             tags = [ e.tag for e in self[i].get_type(quantum) if (e.tag &gt; 0) ]
+--&gt; 168             output.groupby_quanta_tag(tags)
+    169             center_pos = output.index(output.center)
+    170             # Here is where we apply the operator to the new center
+
+
+~/Documents/repos/ph121c/ph121c_lxvm/ph121c_lxvm/tensor/mpo.py in groupby_quanta_tag(self, tag_group)
+    140             if chunk:
+    141                 self.set_local_oper(np.eye(self.d ** len(chunk)), min(chunk))
+--&gt; 142         return super().groupby_quanta_tag(tag_group)
+    143 
+    144     ## These methods must not modify the mps or mpo instance (except reshape)!
+
+
+~/Documents/repos/ph121c/ph121c_lxvm/ph121c_lxvm/tensor/train.py in groupby_quanta_tag(self, tag_group)
+    263         new_center = list(self.get_sites(tag_group))
+    264         assert (len(new_center) == 1), 'unable to distinguish site.'
+--&gt; 265         self.canonize(new_center[0])
+    266 
+    267     def contract_quanta (self, raised, lowered):
+
+
+~/Documents/repos/ph121c/ph121c_lxvm/ph121c_lxvm/tensor/train.py in canonize(self, center)
+    160                         bnd = next(self[i].ind[1].get_type(bond))
+    161                         self.split_site(self[i], center_tag)
+--&gt; 162                         self.contract_bond(bnd)
+    163                     except StopIteration:
+    164                         pass
+
+
+~/Documents/repos/ph121c/ph121c_lxvm/ph121c_lxvm/tensor/train.py in contract_bond(self, bnd)
+     83         assert isinstance(bnd, bond), \
+     84             f'received type {type(bnd)} but need index.bond'
+---&gt; 85         left_pos, right_pos = sorted( self.index(e) for e in bnd.tag )
+     86         assert ((right_pos - left_pos) == 1), \
+     87             'bond should connect adjacent sites.'
+
+
+~/Documents/repos/ph121c/ph121c_lxvm/ph121c_lxvm/tensor/train.py in &lt;genexpr&gt;(.0)
+     83         assert isinstance(bnd, bond), \
+     84             f'received type {type(bnd)} but need index.bond'
+---&gt; 85         left_pos, right_pos = sorted( self.index(e) for e in bnd.tag )
+     86         assert ((right_pos - left_pos) == 1), \
+     87             'bond should connect adjacent sites.'
+
+
+~/.conda/envs/ph121c/lib/python3.7/collections/__init__.py in index(self, item, *args)
+   1138     def copy(self): return self.__class__(self)
+   1139     def count(self, item): return self.data.count(item)
+-&gt; 1140     def index(self, item, *args): return self.data.index(item, *args)
+   1141     def reverse(self): self.data.reverse()
+   1142     def sort(self, *args, **kwds): self.data.sort(*args, **kwds)
+
+
+ValueError: site( # at 0x7f5a3b00a3d0
+  array([[1.10517092, 0.        , 0.        , 0.        ],
+         [0.        , 0.90483742, 0.        , 0.        ],
+         [0.        , 0.        , 0.90483742, 0.        ],
+         [0.        , 0.        , 0.        , 1.10517092]]),
+  multi_index(dim=16, tag=2, shape=(4, 4)) # at 0x7f5a380cbe90
+) is not in list
+</code></pre>
+<p>Well, debugging is hard, and that looks like a bond reference failed to update.
+This means my <code>mpo.oper</code> method that I use on <code>mps</code> types doesn&rsquo;t generalize
+to <code>mpo</code> types. I thought I should write a generic function on <code>train</code> types, but
+it doesn&rsquo;t seem necessary.</p>
+<h2 id="convergence-to-ground-state">Convergence to ground state</h2>
+<p>We will study the convergence to the ground state of the MPS wavefunction of $\ket{\psi}$ for system sizes $L=12, 32, 64, 128$.
+For larger systems, we will make some measurements on these wavefunctions.
+Recall
+\begin{align}
+\ket{\psi (t=0)}
+&amp;= \ket{\uparrow} \otimes \cdots \otimes \ket{\uparrow}
+.
+\end{align}</p>
+<h3 id="comparing-to-ed">Comparing to ED</h3>
+<p>Let&rsquo;s setup a quick calculation for the ground state energy at the small
+system using a sparse eigensolver and our exact methods from earlier in the course.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">L  <span style="color:#f92672">=</span> <span style="color:#ae81ff">12</span>
+d  <span style="color:#f92672">=</span> <span style="color:#ae81ff">2</span>
+hx <span style="color:#f92672">=</span> <span style="color:#ae81ff">1.05</span>
+hz <span style="color:#f92672">=</span> <span style="color:#ae81ff">0.5</span>
+</code></pre></div><div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">%</span>time Eₒ <span style="color:#f92672">=</span> eigsh(models<span style="color:#f92672">.</span>tfim_z<span style="color:#f92672">.</span>H_oper(L, hx, <span style="color:#e6db74">&#39;o&#39;</span>, hz), k<span style="color:#f92672">=</span><span style="color:#ae81ff">1</span>, return_eigenvectors<span style="color:#f92672">=</span>False)[<span style="color:#ae81ff">0</span>]
+</code></pre></div><pre><code>CPU times: user 160 ms, sys: 0 ns, total: 160 ms
+Wall time: 28.4 ms
+</code></pre>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">Eₒ
+</code></pre></div><pre><code>-19.94577803903926
+</code></pre>
+<p>Well, that was quick (thank you Fortran) and seems really close to the
+minimum reached by our earlier time evolution.
+We&rsquo;ll do the same run this time except by truncating the simulation
+when the relative energy difference $|(E_n - E_{n-1}) / E_n|$ converges to
+to under $0.001$.
+We will also compare time step sizes of $\delta\tau = 0.1, 0.01, 0.001$</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">%%</span>time
+<span style="color:#75715e"># State</span>
+<span style="color:#960050;background-color:#1e0010">ψ</span> <span style="color:#f92672">=</span> tensor<span style="color:#f92672">.</span>mps(L<span style="color:#f92672">=</span>L, d<span style="color:#f92672">=</span>d)
+<span style="color:#960050;background-color:#1e0010">ψ</span><span style="color:#f92672">.</span>from_arr([ up <span style="color:#66d9ef">for</span> _ <span style="color:#f92672">in</span> range(L) ], center<span style="color:#f92672">=-</span><span style="color:#ae81ff">1</span>)
+<span style="color:#75715e"># Operators</span>
+H_field, H_odd, H_even, H_full <span style="color:#f92672">=</span> build_pieces_of_H(L<span style="color:#f92672">=</span>L, d<span style="color:#f92672">=</span>d, hx<span style="color:#f92672">=</span>hx, hz<span style="color:#f92672">=</span>hz)
+<span style="color:#75715e"># Results</span>
+<span style="color:#960050;background-color:#1e0010">ψ</span>_converged <span style="color:#f92672">=</span> []
+<span style="color:#960050;background-color:#1e0010">ψ</span>_data <span style="color:#f92672">=</span> dict(dtau<span style="color:#f92672">=</span>[], tau<span style="color:#f92672">=</span>[], E<span style="color:#f92672">=</span>[], relerr<span style="color:#f92672">=</span>[])
+E_initial <span style="color:#f92672">=</span> sum(e<span style="color:#f92672">.</span>expval(<span style="color:#960050;background-color:#1e0010">ψ</span>) <span style="color:#66d9ef">for</span> e <span style="color:#f92672">in</span> H_full)
+<span style="color:#75715e"># TEBD pattern</span>
+rtol <span style="color:#f92672">=</span> <span style="color:#ae81ff">0.001</span>
+step_sizes <span style="color:#f92672">=</span> [<span style="color:#ae81ff">0.1</span>, <span style="color:#ae81ff">0.01</span>, <span style="color:#ae81ff">0.001</span>]
+<span style="color:#66d9ef">for</span> <span style="color:#960050;background-color:#1e0010">δτ</span> <span style="color:#f92672">in</span> step_sizes:
+    U_field, U_odd, U_even <span style="color:#f92672">=</span> build_propagators(
+        L<span style="color:#f92672">=</span>L, d<span style="color:#f92672">=</span>d, <span style="color:#960050;background-color:#1e0010">δτ</span><span style="color:#f92672">=</span><span style="color:#960050;background-color:#1e0010">δτ</span>, H_field<span style="color:#f92672">=</span>H_field, H_odd<span style="color:#f92672">=</span>H_odd, H_even<span style="color:#f92672">=</span>H_even
+    )
+    i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>
+    relerr <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>
+    wave <span style="color:#f92672">=</span> deepcopy(<span style="color:#960050;background-color:#1e0010">ψ</span>)
+    <span style="color:#75715e"># Max rank</span>
+    chi <span style="color:#f92672">=</span> <span style="color:#ae81ff">16</span>
+    <span style="color:#960050;background-color:#1e0010">ψ</span>_data[<span style="color:#e6db74">&#39;E&#39;</span>]<span style="color:#f92672">.</span>append(E_initial)
+    <span style="color:#960050;background-color:#1e0010">ψ</span>_data[<span style="color:#e6db74">&#39;relerr&#39;</span>]<span style="color:#f92672">.</span>append(relerr)
+    <span style="color:#960050;background-color:#1e0010">ψ</span>_data[<span style="color:#e6db74">&#39;tau&#39;</span>]<span style="color:#f92672">.</span>append(<span style="color:#ae81ff">0</span>)
+    <span style="color:#960050;background-color:#1e0010">ψ</span>_data[<span style="color:#e6db74">&#39;dtau&#39;</span>]<span style="color:#f92672">.</span>append(<span style="color:#960050;background-color:#1e0010">δτ</span>)
+    <span style="color:#66d9ef">while</span> (relerr <span style="color:#f92672">&gt;</span> rtol):
+        <span style="color:#66d9ef">for</span> e <span style="color:#f92672">in</span> [U_field, U_even, U_odd]:
+            e<span style="color:#f92672">.</span>oper(wave, inplace<span style="color:#f92672">=</span>True)
+        wave<span style="color:#f92672">.</span>trim_bonds(chi)
+        wave<span style="color:#f92672">.</span>normalize()
+        i <span style="color:#f92672">+=</span> <span style="color:#ae81ff">1</span>
+        <span style="color:#960050;background-color:#1e0010">ψ</span>_data[<span style="color:#e6db74">&#39;E&#39;</span>]<span style="color:#f92672">.</span>append(sum(e<span style="color:#f92672">.</span>expval(wave) <span style="color:#66d9ef">for</span> e <span style="color:#f92672">in</span> H_full))
+        relerr <span style="color:#f92672">=</span> abs((<span style="color:#960050;background-color:#1e0010">ψ</span>_data[<span style="color:#e6db74">&#39;E&#39;</span>][<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>] <span style="color:#f92672">-</span> <span style="color:#960050;background-color:#1e0010">ψ</span>_data[<span style="color:#e6db74">&#39;E&#39;</span>][<span style="color:#f92672">-</span><span style="color:#ae81ff">2</span>]) <span style="color:#f92672">/</span> <span style="color:#960050;background-color:#1e0010">ψ</span>_data[<span style="color:#e6db74">&#39;E&#39;</span>][<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>])
+        <span style="color:#960050;background-color:#1e0010">ψ</span>_data[<span style="color:#e6db74">&#39;relerr&#39;</span>]<span style="color:#f92672">.</span>append(relerr)
+        <span style="color:#960050;background-color:#1e0010">ψ</span>_data[<span style="color:#e6db74">&#39;dtau&#39;</span>]<span style="color:#f92672">.</span>append(<span style="color:#960050;background-color:#1e0010">δτ</span>)
+        <span style="color:#960050;background-color:#1e0010">ψ</span>_data[<span style="color:#e6db74">&#39;tau&#39;</span>]<span style="color:#f92672">.</span>append(<span style="color:#960050;background-color:#1e0010">δτ</span> <span style="color:#f92672">*</span> i)
+        <span style="color:#66d9ef">if</span> ((i <span style="color:#f92672">%</span> <span style="color:#ae81ff">10</span>) <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span>):
+            <span style="color:#66d9ef">print</span>(f<span style="color:#e6db74">&#39;Completed step {i} :: dtau={δτ} :: relative error {relerr}&#39;</span>)
+    <span style="color:#960050;background-color:#1e0010">ψ</span>_converged<span style="color:#f92672">.</span>append(wave)
+    <span style="color:#66d9ef">print</span>(f<span style="color:#e6db74">&#39;dtau={δτ} converged within rtol={rtol} in {i} steps&#39;</span>)
+</code></pre></div><pre><code>Completed step 10 :: dtau=0.1 :: relative error 0.11052898331065479
+dtau=0.1 converged within rtol=0.001 in 18 steps
+Completed step 10 :: dtau=0.01 :: relative error 0.022332604616300347
+Completed step 20 :: dtau=0.01 :: relative error 0.011880294254134427
+Completed step 30 :: dtau=0.01 :: relative error 0.007629698816700093
+Completed step 40 :: dtau=0.01 :: relative error 0.005785861024167228
+Completed step 50 :: dtau=0.01 :: relative error 0.005081225438163214
+Completed step 60 :: dtau=0.01 :: relative error 0.00508097227745834
+Completed step 70 :: dtau=0.01 :: relative error 0.00569205153874006
+Completed step 80 :: dtau=0.01 :: relative error 0.0069837469402630695
+Completed step 90 :: dtau=0.01 :: relative error 0.008954310702568432
+Completed step 100 :: dtau=0.01 :: relative error 0.010836955888001671
+Completed step 110 :: dtau=0.01 :: relative error 0.01064547975484463
+Completed step 120 :: dtau=0.01 :: relative error 0.00777394581004741
+Completed step 130 :: dtau=0.01 :: relative error 0.004476012311521265
+Completed step 140 :: dtau=0.01 :: relative error 0.0022887756487684255
+Completed step 150 :: dtau=0.01 :: relative error 0.0011280931348894825
+dtau=0.01 converged within rtol=0.001 in 152 steps
+Completed step 10 :: dtau=0.001 :: relative error 0.004774673781280013
+Completed step 20 :: dtau=0.001 :: relative error 0.004323138641314433
+Completed step 30 :: dtau=0.001 :: relative error 0.00392955707201135
+Completed step 40 :: dtau=0.001 :: relative error 0.0035844021354098947
+Completed step 50 :: dtau=0.001 :: relative error 0.0032801300378205926
+Completed step 60 :: dtau=0.001 :: relative error 0.003010679087888506
+Completed step 70 :: dtau=0.001 :: relative error 0.0027711150845904963
+Completed step 80 :: dtau=0.001 :: relative error 0.0025573753974013425
+Completed step 90 :: dtau=0.001 :: relative error 0.0023660809762896203
+Completed step 100 :: dtau=0.001 :: relative error 0.0021943960112396467
+Completed step 110 :: dtau=0.001 :: relative error 0.0020399215959311257
+Completed step 120 :: dtau=0.001 :: relative error 0.001900614044379694
+Completed step 130 :: dtau=0.001 :: relative error 0.0017747213431069935
+Completed step 140 :: dtau=0.001 :: relative error 0.001660733126377698
+Completed step 150 :: dtau=0.001 :: relative error 0.0015573408639144618
+Completed step 160 :: dtau=0.001 :: relative error 0.001463405852678402
+Completed step 170 :: dtau=0.001 :: relative error 0.0013779332397855937
+Completed step 180 :: dtau=0.001 :: relative error 0.0013000507557396686
+Completed step 190 :: dtau=0.001 :: relative error 0.0012289911630306628
+Completed step 200 :: dtau=0.001 :: relative error 0.0011640776634128044
+Completed step 210 :: dtau=0.001 :: relative error 0.0011047116817713394
+Completed step 220 :: dtau=0.001 :: relative error 0.0010503625757645177
+Completed step 230 :: dtau=0.001 :: relative error 0.001000558917304315
+dtau=0.001 converged within rtol=0.001 in 231 steps
+CPU times: user 53min 4s, sys: 36.8 s, total: 53min 41s
+Wall time: 9min
+</code></pre>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">df <span style="color:#f92672">=</span> pd<span style="color:#f92672">.</span>DataFrame(<span style="color:#960050;background-color:#1e0010">ψ</span>_data)
+</code></pre></div><div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">fig, ax <span style="color:#f92672">=</span> plt<span style="color:#f92672">.</span>subplots()
+
+<span style="color:#66d9ef">for</span> i, <span style="color:#960050;background-color:#1e0010">δτ</span> <span style="color:#f92672">in</span> enumerate(step_sizes):
+    ax<span style="color:#f92672">.</span>plot(
+        df<span style="color:#f92672">.</span>tau[df<span style="color:#f92672">.</span>dtau <span style="color:#f92672">==</span> <span style="color:#960050;background-color:#1e0010">δτ</span>]<span style="color:#f92672">.</span>values,
+        df<span style="color:#f92672">.</span>E[df<span style="color:#f92672">.</span>dtau <span style="color:#f92672">==</span> <span style="color:#960050;background-color:#1e0010">δτ</span>]<span style="color:#f92672">.</span>values,
+        label <span style="color:#f92672">=</span> f<span style="color:#e6db74">&#39;$</span><span style="color:#ae81ff">\\</span><span style="color:#e6db74">delta </span><span style="color:#ae81ff">\\</span><span style="color:#e6db74">tau={δτ}$&#39;</span>
+    )
+ax<span style="color:#f92672">.</span>axhline(Eₒ, label<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;$E_o$&#39;</span>)
+ax<span style="color:#f92672">.</span>set_title(<span style="color:#e6db74">&#39;Cooling during imaginary time evolution&#39;</span>)
+ax<span style="color:#f92672">.</span>set_xlabel(f<span style="color:#e6db74">&#39;Imaginary time $</span><span style="color:#ae81ff">\\</span><span style="color:#e6db74">tau$$&#39;</span>)
+ax<span style="color:#f92672">.</span>set_ylabel(<span style="color:#e6db74">&#39;Expectation value of Hamiltonian&#39;</span>)
+ax<span style="color:#f92672">.</span>legend()
+plt<span style="color:#f92672">.</span>show()
+</code></pre></div><p><img src="output_63_0.png" alt="png"></p>
+<p>Clearly the smallest step size reached the desired relative tolerance much
+earlier than the others because the relative tolerance was kept the same
+across the different time step sizes.
+I really don&rsquo;t want to wait an hour to evolve all that time anyway, so I&rsquo;m
+glad that it stopped itself.
+Anyway, we can take a look at the final converged energies to get a more
+precise view of this</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#66d9ef">print</span>(<span style="color:#e6db74">&#39;ED ground state energy ::&#39;</span>, Eₒ)
+<span style="color:#66d9ef">for</span> <span style="color:#960050;background-color:#1e0010">δτ</span> <span style="color:#f92672">in</span> step_sizes:
+    <span style="color:#66d9ef">print</span>(
+        f<span style="color:#e6db74">&#39;converged ground state energy, δτ={δτ} ::&#39;</span>,
+        df<span style="color:#f92672">.</span>E[df<span style="color:#f92672">.</span>dtau <span style="color:#f92672">==</span> <span style="color:#960050;background-color:#1e0010">δτ</span>]<span style="color:#f92672">.</span>values[<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>]
+    )
+</code></pre></div><pre><code>ED ground state energy :: -19.94577803903926
+converged ground state energy, δτ=0.1 :: -19.877286728955642
+converged ground state energy, δτ=0.01 :: -19.679317693465716
+converged ground state energy, δτ=0.001 :: -8.535746649468903
+</code></pre>
+<p>So actually the larger step size gave us a better estimate of the energy,
+just because it did not converge too early!
+Another question is how close the MPS ground state is to the ED ground state:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">_, gs <span style="color:#f92672">=</span> eigsh(models<span style="color:#f92672">.</span>tfim_z<span style="color:#f92672">.</span>H_oper(L, hx, <span style="color:#e6db74">&#39;o&#39;</span>, hz), k<span style="color:#f92672">=</span><span style="color:#ae81ff">1</span>)
+</code></pre></div><div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#960050;background-color:#1e0010">ψ</span> <span style="color:#f92672">=</span> deepcopy(<span style="color:#960050;background-color:#1e0010">ψ</span>_converged[<span style="color:#ae81ff">0</span>])
+<span style="color:#960050;background-color:#1e0010">ψ</span><span style="color:#f92672">.</span>merge_bonds()
+<span style="color:#960050;background-color:#1e0010">ψ</span><span style="color:#f92672">.</span>reset_pos()
+</code></pre></div><div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">np<span style="color:#f92672">.</span>inner(<span style="color:#960050;background-color:#1e0010">ψ</span>[<span style="color:#ae81ff">0</span>]<span style="color:#f92672">.</span>mat<span style="color:#f92672">.</span>reshape(gs<span style="color:#f92672">.</span>size), gs<span style="color:#f92672">.</span>reshape(gs<span style="color:#f92672">.</span>size))
+</code></pre></div><pre><code>-0.9942849322190765
+</code></pre>
+<p>The overlap of the two states is surprisingly good!
+The negative sign due to phase is not meaningful.</p>
+<h3 id="larger-system-sizes">Larger system sizes</h3>
+<p>Let&rsquo;s boost to a larger systems and compute their approximate ground states.
+We can measure correlation functions in these ground states and
+compare their energies.
+We will not be measuring their energies every step but instead I will
+just simulate 20 time steps of each with $\delta\tau = 0.1$ because it
+is expensive to calculate a Hamiltonian of 200 terms.
+I&rsquo;ll just be testing the systems of size $L = 10n$ for $n= 1, \dots, 10$.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">%%</span>time
+L_list <span style="color:#f92672">=</span> list(range(<span style="color:#ae81ff">10</span>, <span style="color:#ae81ff">110</span>, <span style="color:#ae81ff">10</span>))
+<span style="color:#960050;background-color:#1e0010">ψ</span>_converged <span style="color:#f92672">=</span> []
+<span style="color:#960050;background-color:#1e0010">ψ</span>_energies <span style="color:#f92672">=</span> []
+<span style="color:#960050;background-color:#1e0010">δτ</span> <span style="color:#f92672">=</span> <span style="color:#ae81ff">0.1</span>
+<span style="color:#66d9ef">for</span> L <span style="color:#f92672">in</span> L_list:
+    <span style="color:#960050;background-color:#1e0010">ψ</span> <span style="color:#f92672">=</span> tensor<span style="color:#f92672">.</span>mps(L<span style="color:#f92672">=</span>L, d<span style="color:#f92672">=</span>d)
+    <span style="color:#960050;background-color:#1e0010">ψ</span><span style="color:#f92672">.</span>from_arr([ up <span style="color:#66d9ef">for</span> _ <span style="color:#f92672">in</span> range(L) ], center<span style="color:#f92672">=-</span><span style="color:#ae81ff">1</span>)
+    H_field, H_odd, H_even, H_full <span style="color:#f92672">=</span> build_pieces_of_H(
+        L<span style="color:#f92672">=</span>L, d<span style="color:#f92672">=</span>d, hx<span style="color:#f92672">=</span>hx, hz<span style="color:#f92672">=</span>hz
+    )
+    U_field, U_odd, U_even <span style="color:#f92672">=</span> build_propagators(
+        L<span style="color:#f92672">=</span>L, d<span style="color:#f92672">=</span>d, <span style="color:#960050;background-color:#1e0010">δτ</span><span style="color:#f92672">=</span><span style="color:#960050;background-color:#1e0010">δτ</span>, H_field<span style="color:#f92672">=</span>H_field, H_odd<span style="color:#f92672">=</span>H_odd, H_even<span style="color:#f92672">=</span>H_even
+    )
+    <span style="color:#75715e"># Max rank</span>
+    chi <span style="color:#f92672">=</span> <span style="color:#ae81ff">16</span>
+    Nstp <span style="color:#f92672">=</span> <span style="color:#ae81ff">20</span>
+    <span style="color:#75715e"># TEBD</span>
+    <span style="color:#66d9ef">for</span> i <span style="color:#f92672">in</span> range(Nstp):
+        <span style="color:#66d9ef">for</span> e <span style="color:#f92672">in</span> [U_field, U_even, U_odd]:
+            e<span style="color:#f92672">.</span>oper(<span style="color:#960050;background-color:#1e0010">ψ</span>, inplace<span style="color:#f92672">=</span>True)
+        <span style="color:#960050;background-color:#1e0010">ψ</span><span style="color:#f92672">.</span>trim_bonds(chi)
+        <span style="color:#960050;background-color:#1e0010">ψ</span><span style="color:#f92672">.</span>normalize()
+    <span style="color:#960050;background-color:#1e0010">ψ</span>_converged<span style="color:#f92672">.</span>append(<span style="color:#960050;background-color:#1e0010">ψ</span>)
+    <span style="color:#960050;background-color:#1e0010">ψ</span>_energies<span style="color:#f92672">.</span>append(sum( e<span style="color:#f92672">.</span>expval(<span style="color:#960050;background-color:#1e0010">ψ</span>) <span style="color:#66d9ef">for</span> e <span style="color:#f92672">in</span> H_full ))
+    <span style="color:#66d9ef">print</span>(f<span style="color:#e6db74">&#39;Completed {Nstp} steps at system size {L}&#39;</span>)
+</code></pre></div><pre><code>Completed 20 steps at system size 10
+Completed 20 steps at system size 20
+Completed 20 steps at system size 30
+Completed 20 steps at system size 40
+Completed 20 steps at system size 50
+Completed 20 steps at system size 60
+Completed 20 steps at system size 70
+Completed 20 steps at system size 80
+Completed 20 steps at system size 90
+Completed 20 steps at system size 100
+CPU times: user 5h 56min 54s, sys: 4min 14s, total: 6h 1min 9s
+Wall time: 1h 4min 33s
+</code></pre>
+<p>Wow, that took a really long time to simulate :(.
+The really dumb thing that someone should be scolding me for is:
+&ldquo;why am I using the all spin-up wavefunction as an ansatz&rdquo;.
+At the beginning of this notebook, I used the all spin-down wavefunction,
+which starts out closer to the ground state so that I wouldn&rsquo;t have to
+evolve the state for so long.</p>
+<p>Anyway, we have the wavefunctions so let&rsquo;s be sure to
+measure interesting things on them. First, let&rsquo;s display the difference
+$(E(L+x) - E(L))/x$</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">fig, ax <span style="color:#f92672">=</span> plt<span style="color:#f92672">.</span>subplots()
+ax<span style="color:#f92672">.</span>plot(
+    L_list[:<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>], 
+    [ ((<span style="color:#960050;background-color:#1e0010">ψ</span>_energies[i] <span style="color:#f92672">-</span> <span style="color:#960050;background-color:#1e0010">ψ</span>_energies[i <span style="color:#f92672">+</span> <span style="color:#ae81ff">1</span>]) <span style="color:#f92672">/</span> (L_list[i<span style="color:#f92672">+</span><span style="color:#ae81ff">1</span>] <span style="color:#f92672">-</span> L))
+     <span style="color:#66d9ef">for</span> i, L <span style="color:#f92672">in</span> enumerate(L_list[:<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>]) ],
+)
+ax<span style="color:#f92672">.</span>set_title(<span style="color:#e6db74">&#39;Convergence of estimated $E_{gs}$&#39;</span>)
+ax<span style="color:#f92672">.</span>set_xlabel(<span style="color:#e6db74">&#39;$L$&#39;</span>)
+ax<span style="color:#f92672">.</span>set_ylabel(<span style="color:#e6db74">&#39;(E(L+10) - E(L))/10&#39;</span>)
+plt<span style="color:#f92672">.</span>show()
+</code></pre></div><p><img src="output_74_0.png" alt="png"></p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">i<span style="color:#f92672">=</span><span style="color:#ae81ff">7</span>; ((<span style="color:#960050;background-color:#1e0010">ψ</span>_energies[i] <span style="color:#f92672">-</span> <span style="color:#960050;background-color:#1e0010">ψ</span>_energies[i <span style="color:#f92672">+</span> <span style="color:#ae81ff">1</span>]) <span style="color:#f92672">/</span> (L_list[i<span style="color:#f92672">+</span><span style="color:#ae81ff">1</span>] <span style="color:#f92672">-</span> L))
+</code></pre></div><pre><code>-1.7171464427371574
+</code></pre>
+<p>Great, it looks like this quantity reaches a stable value -1.71714 in the
+$L \to \infty$ limit.
+Now let&rsquo;s measure some of our favorite correlation functions on all
+of these wavefunctions. We can&rsquo;t really measure our 2-point correlation
+functions from the first assignment without incurring some large tensor
+contractions, so we&rsquo;ll stick to measuring
+$\ev{\sigma_{L/2}^x}, \ev{\sigma_1^x}, \ev{\sigma_{L/2}^z}, \ev{\sigma_1^z}$.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">make_observables</span> (L, d):
+    <span style="color:#e6db74">&#34;&#34;&#34;Create the observable operators of interest.&#34;&#34;&#34;</span>
+    s1x <span style="color:#f92672">=</span> tensor<span style="color:#f92672">.</span>mpo(L<span style="color:#f92672">=</span>L, d<span style="color:#f92672">=</span>d)
+    s1x<span style="color:#f92672">.</span>set_local_oper(sx, <span style="color:#ae81ff">1</span>)
+    sL2x <span style="color:#f92672">=</span> tensor<span style="color:#f92672">.</span>mpo(L<span style="color:#f92672">=</span>L, d<span style="color:#f92672">=</span>d)
+    sL2x<span style="color:#f92672">.</span>set_local_oper(sx, L<span style="color:#f92672">//</span><span style="color:#ae81ff">2</span>)
+    s1z <span style="color:#f92672">=</span> tensor<span style="color:#f92672">.</span>mpo(L<span style="color:#f92672">=</span>L, d<span style="color:#f92672">=</span>d)
+    s1z<span style="color:#f92672">.</span>set_local_oper(sz, <span style="color:#ae81ff">1</span>)
+    sL2z <span style="color:#f92672">=</span> tensor<span style="color:#f92672">.</span>mpo(L<span style="color:#f92672">=</span>L, d<span style="color:#f92672">=</span>d)
+    sL2z<span style="color:#f92672">.</span>set_local_oper(sz, L<span style="color:#f92672">//</span><span style="color:#ae81ff">2</span>)
+    <span style="color:#66d9ef">return</span> (s1x, sL2x, s1z, sL2z)
+</code></pre></div><div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">%%</span>time
+observables <span style="color:#f92672">=</span> dict(L<span style="color:#f92672">=</span>[], s1x<span style="color:#f92672">=</span>[], sL2x<span style="color:#f92672">=</span>[], s1z<span style="color:#f92672">=</span>[], sL2z<span style="color:#f92672">=</span>[])
+<span style="color:#66d9ef">for</span> i, L <span style="color:#f92672">in</span> enumerate(L_list):
+    s1x, sL2x, s1z, sL2z <span style="color:#f92672">=</span> make_observables(L, d)
+    observables[<span style="color:#e6db74">&#39;s1x&#39;</span>]<span style="color:#f92672">.</span>append(s1x<span style="color:#f92672">.</span>expval(<span style="color:#960050;background-color:#1e0010">ψ</span>_converged[i]))
+    observables[<span style="color:#e6db74">&#39;sL2x&#39;</span>]<span style="color:#f92672">.</span>append(sL2x<span style="color:#f92672">.</span>expval(<span style="color:#960050;background-color:#1e0010">ψ</span>_converged[i]))
+    observables[<span style="color:#e6db74">&#39;s1z&#39;</span>]<span style="color:#f92672">.</span>append(s1z<span style="color:#f92672">.</span>expval(<span style="color:#960050;background-color:#1e0010">ψ</span>_converged[i]))
+    observables[<span style="color:#e6db74">&#39;sL2z&#39;</span>]<span style="color:#f92672">.</span>append(sL2z<span style="color:#f92672">.</span>expval(<span style="color:#960050;background-color:#1e0010">ψ</span>_converged[i]))
+    observables[<span style="color:#e6db74">&#39;L&#39;</span>]<span style="color:#f92672">.</span>append(L)
+</code></pre></div><pre><code>CPU times: user 16 s, sys: 128 ms, total: 16.1 s
+Wall time: 2.69 s
+</code></pre>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">df <span style="color:#f92672">=</span> pd<span style="color:#f92672">.</span>DataFrame(observables)
+nrow, ncol <span style="color:#f92672">=</span> <span style="color:#ae81ff">2</span>, <span style="color:#ae81ff">2</span>
+fig, axes <span style="color:#f92672">=</span> plt<span style="color:#f92672">.</span>subplots(nrow, ncol, sharex<span style="color:#f92672">=</span>True)
+names <span style="color:#f92672">=</span> [(<span style="color:#e6db74">&#39;s1x&#39;</span>, <span style="color:#e6db74">&#39;$</span><span style="color:#ae81ff">\\</span><span style="color:#e6db74">sigma_1^x$&#39;</span>), (<span style="color:#e6db74">&#39;sL2x&#39;</span>, <span style="color:#e6db74">&#39;$</span><span style="color:#ae81ff">\\</span><span style="color:#e6db74">sigma_{L/2}^x$&#39;</span>),
+         (<span style="color:#e6db74">&#39;s1z&#39;</span>, <span style="color:#e6db74">&#39;$</span><span style="color:#ae81ff">\\</span><span style="color:#e6db74">sigma_1^z$&#39;</span>), (<span style="color:#e6db74">&#39;sL2z&#39;</span>, <span style="color:#e6db74">&#39;$</span><span style="color:#ae81ff">\\</span><span style="color:#e6db74">sigma_{L/2}^z$&#39;</span>)]
+<span style="color:#66d9ef">for</span> i, row <span style="color:#f92672">in</span> enumerate(axes):
+    <span style="color:#66d9ef">for</span> j, ax <span style="color:#f92672">in</span> enumerate(row):
+        ax<span style="color:#f92672">.</span>plot(L_list, df[names[ncol<span style="color:#f92672">*</span>i <span style="color:#f92672">+</span> j][<span style="color:#ae81ff">0</span>]]<span style="color:#f92672">.</span>values)
+        ax<span style="color:#f92672">.</span>set_title(names[ncol<span style="color:#f92672">*</span>i <span style="color:#f92672">+</span> j][<span style="color:#ae81ff">1</span>])
+        ax<span style="color:#f92672">.</span>set_xlabel(<span style="color:#e6db74">&#39;L&#39;</span>)
+        ax<span style="color:#f92672">.</span>set_ylabel(<span style="color:#e6db74">&#39;$</span><span style="color:#ae81ff">\\</span><span style="color:#e6db74">langle$&#39;</span> <span style="color:#f92672">+</span> names[ncol<span style="color:#f92672">*</span>i <span style="color:#f92672">+</span> j][<span style="color:#ae81ff">1</span>] <span style="color:#f92672">+</span> <span style="color:#e6db74">&#39;$</span><span style="color:#ae81ff">\\</span><span style="color:#e6db74">rangle$&#39;</span>)
+fig<span style="color:#f92672">.</span>tight_layout()
+</code></pre></div><p><img src="output_79_0.png" alt="png"></p>
+<p>Interesting to see that $\sigma_i^x$ is of the same order of magnitude
+at the center and boundary of the spin chain, but that for $\sigma_i^z$
+the correlator nearly vanishes at the boundary but is nearly saturated
+at the center.</p>
+<p>I find it surprising that for such a large system that these results aren&rsquo;t ridden with numerical noise.</p>
+<h2 id="a-néel-ing">a Néel-ing</h2>
+<p>Let&rsquo;s see the convergence to the ground state of an alternating spin chain.</p>
+<p>\begin{align}
+\ket{\psi (t=0)}
+&amp;= \ket{\uparrow} \otimes \ket{\downarrow} \otimes \cdots
+.
+\end{align}
+We&rsquo;ll choose a system size which is twice as large as what I did in
+assignment 1 with my sparse Lanczos solver so that it is larger but
+won&rsquo;t take forever. Voilá $L=48$.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">%%</span>time
+L <span style="color:#f92672">=</span> <span style="color:#ae81ff">48</span>
+<span style="color:#960050;background-color:#1e0010">ψ</span> <span style="color:#f92672">=</span> tensor<span style="color:#f92672">.</span>mps(L<span style="color:#f92672">=</span>L, d<span style="color:#f92672">=</span>d)
+wave <span style="color:#f92672">=</span> []
+<span style="color:#66d9ef">for</span> i <span style="color:#f92672">in</span> range(L <span style="color:#f92672">//</span> <span style="color:#ae81ff">2</span>):
+    wave<span style="color:#f92672">.</span>append(up)
+    wave<span style="color:#f92672">.</span>append(down)
+<span style="color:#66d9ef">assert</span> (len(wave) <span style="color:#f92672">==</span> L)
+<span style="color:#960050;background-color:#1e0010">ψ</span><span style="color:#f92672">.</span>from_arr(wave, center<span style="color:#f92672">=-</span><span style="color:#ae81ff">1</span>)
+H_field, H_odd, H_even, H_full <span style="color:#f92672">=</span> build_pieces_of_H(L<span style="color:#f92672">=</span>L, d<span style="color:#f92672">=</span>d, hx<span style="color:#f92672">=</span>hx, hz<span style="color:#f92672">=</span>hz)
+<span style="color:#75715e"># Results</span>
+<span style="color:#960050;background-color:#1e0010">ψ</span>_energies <span style="color:#f92672">=</span> [sum(e<span style="color:#f92672">.</span>expval(<span style="color:#960050;background-color:#1e0010">ψ</span>) <span style="color:#66d9ef">for</span> e <span style="color:#f92672">in</span> H_full)]
+<span style="color:#75715e"># TEBD pattern</span>
+rtol <span style="color:#f92672">=</span> <span style="color:#ae81ff">0.001</span>
+<span style="color:#960050;background-color:#1e0010">δτ</span> <span style="color:#f92672">=</span> <span style="color:#ae81ff">0.1</span>
+U_field, U_odd, U_even <span style="color:#f92672">=</span> build_propagators(
+    L<span style="color:#f92672">=</span>L, d<span style="color:#f92672">=</span>d, <span style="color:#960050;background-color:#1e0010">δτ</span><span style="color:#f92672">=</span><span style="color:#960050;background-color:#1e0010">δτ</span>, H_field<span style="color:#f92672">=</span>H_field, H_odd<span style="color:#f92672">=</span>H_odd, H_even<span style="color:#f92672">=</span>H_even
+)
+chi <span style="color:#f92672">=</span> <span style="color:#ae81ff">16</span>
+i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>
+relerr <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>
+<span style="color:#66d9ef">while</span> (relerr <span style="color:#f92672">&gt;</span> rtol):
+    <span style="color:#66d9ef">for</span> e <span style="color:#f92672">in</span> [U_field, U_even, U_odd]:
+        e<span style="color:#f92672">.</span>oper(<span style="color:#960050;background-color:#1e0010">ψ</span>, inplace<span style="color:#f92672">=</span>True)
+    <span style="color:#960050;background-color:#1e0010">ψ</span><span style="color:#f92672">.</span>trim_bonds(chi)
+    <span style="color:#960050;background-color:#1e0010">ψ</span><span style="color:#f92672">.</span>normalize()
+    <span style="color:#960050;background-color:#1e0010">ψ</span>_energies<span style="color:#f92672">.</span>append(sum(e<span style="color:#f92672">.</span>expval(<span style="color:#960050;background-color:#1e0010">ψ</span>) <span style="color:#66d9ef">for</span> e <span style="color:#f92672">in</span> H_full))
+    relerr <span style="color:#f92672">=</span> abs((<span style="color:#960050;background-color:#1e0010">ψ</span>_energies[<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>] <span style="color:#f92672">-</span> <span style="color:#960050;background-color:#1e0010">ψ</span>_energies[<span style="color:#f92672">-</span><span style="color:#ae81ff">2</span>]) <span style="color:#f92672">/</span> <span style="color:#960050;background-color:#1e0010">ψ</span>_energies[<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>])
+    i <span style="color:#f92672">+=</span> <span style="color:#ae81ff">1</span>
+    <span style="color:#66d9ef">if</span> ((i <span style="color:#f92672">%</span> <span style="color:#ae81ff">10</span>) <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span>):
+        <span style="color:#66d9ef">print</span>(f<span style="color:#e6db74">&#39;Completed step {i} :: dtau={δτ} :: relative error {relerr}&#39;</span>)
+<span style="color:#66d9ef">print</span>(f<span style="color:#e6db74">&#39;dtau={δτ} converged within rtol={rtol} in {i} steps&#39;</span>)
+</code></pre></div><pre><code>Completed step 10 :: dtau=0.1 :: relative error 0.0021793080500920876
+dtau=0.1 converged within rtol=0.001 in 11 steps
+CPU times: user 22min 38s, sys: 15.8 s, total: 22min 54s
+Wall time: 4min 12s
+</code></pre>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">plt<span style="color:#f92672">.</span>plot(<span style="color:#960050;background-color:#1e0010">δτ</span> <span style="color:#f92672">*</span> np<span style="color:#f92672">.</span>arange(len(<span style="color:#960050;background-color:#1e0010">ψ</span>_energies)), <span style="color:#960050;background-color:#1e0010">ψ</span>_energies)
+plt<span style="color:#f92672">.</span>xlabel(<span style="color:#e6db74">&#39;Imaginary time $</span><span style="color:#ae81ff">\\</span><span style="color:#e6db74">tau$&#39;</span>)
+plt<span style="color:#f92672">.</span>ylabel(<span style="color:#e6db74">&#39;Expectation value of Hamiltonian&#39;</span>)
+plt<span style="color:#f92672">.</span>show()
+</code></pre></div><p><img src="output_84_0.png" alt="png"></p>
+<p>It looks like this state cools in less than half the time the first simulation,
+which had a system size of 1/4th of this one, did.
+I didn&rsquo;t realize that larger systems could potentially converge faster,
+especially noticing that this state starts with positive energy.
+But it might also be the
+In this system, the converged ground state energy is:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#960050;background-color:#1e0010">ψ</span>_energies[<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>]
+</code></pre></div><pre><code>-81.72930885147767
+</code></pre>
+<p>Let&rsquo;s measure some correlators again</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">observables <span style="color:#f92672">=</span> dict(L<span style="color:#f92672">=</span>[], s1x<span style="color:#f92672">=</span>[], sL2x<span style="color:#f92672">=</span>[], s1z<span style="color:#f92672">=</span>[], sL2z<span style="color:#f92672">=</span>[])
+s1x, sL2x, s1z, sL2z <span style="color:#f92672">=</span> make_observables(L, d)
+observables[<span style="color:#e6db74">&#39;s1x&#39;</span>]<span style="color:#f92672">.</span>append(s1x<span style="color:#f92672">.</span>expval(<span style="color:#960050;background-color:#1e0010">ψ</span>))
+observables[<span style="color:#e6db74">&#39;sL2x&#39;</span>]<span style="color:#f92672">.</span>append(sL2x<span style="color:#f92672">.</span>expval(<span style="color:#960050;background-color:#1e0010">ψ</span>))
+observables[<span style="color:#e6db74">&#39;s1z&#39;</span>]<span style="color:#f92672">.</span>append(s1z<span style="color:#f92672">.</span>expval(<span style="color:#960050;background-color:#1e0010">ψ</span>))
+observables[<span style="color:#e6db74">&#39;sL2z&#39;</span>]<span style="color:#f92672">.</span>append(sL2z<span style="color:#f92672">.</span>expval(<span style="color:#960050;background-color:#1e0010">ψ</span>))
+observables[<span style="color:#e6db74">&#39;L&#39;</span>]<span style="color:#f92672">.</span>append(L)
+</code></pre></div><pre><code>---------------------------------------------------------------------------
+
+MemoryError                               Traceback (most recent call last)
+
+&lt;ipython-input-170-aeb7d931d025&gt; in &lt;module&gt;
+      2 s1x, sL2x, s1z, sL2z = make_observables(L, d)
+      3 observables['s1x'].append(s1x.expval(ψ))
+----&gt; 4 observables['sL2x'].append(sL2x.expval(ψ))
+      5 observables['s1z'].append(s1z.expval(ψ))
+      6 observables['sL2z'].append(sL2z.expval(ψ))
+
+
+~/Documents/repos/ph121c/ph121c_lxvm/ph121c_lxvm/tensor/mpo.py in expval(self, tren)
+    201             else:
+    202                 raise IndexError('hard coded sizes do not implement this')
+--&gt; 203             tren.groupby_quanta_tag(tags)
+    204             output = train([tren.center.copy(), oper])
+    205             output[0].transpose()
+
+
+~/Documents/repos/ph121c/ph121c_lxvm/ph121c_lxvm/tensor/train.py in groupby_quanta_tag(self, tag_group)
+    260         if sites:
+    261             self.split_quanta(self.center, sites, N_list)
+--&gt; 262         self.merge_bonds(list(self.get_sites(tag_group)))
+    263         new_center = list(self.get_sites(tag_group))
+    264         assert (len(new_center) == 1), 'unable to distinguish site.'
+
+
+~/Documents/repos/ph121c/ph121c_lxvm/ph121c_lxvm/tensor/train.py in merge_bonds(self, sites)
+    101             for i in chunk[:-1]:
+    102                 for bnd in self[i - count_contractions].ind[1].get_type(bond):
+--&gt; 103                     self.contract_bond(bnd)
+    104                     count_contractions += 1
+    105                     break
+
+
+~/Documents/repos/ph121c/ph121c_lxvm/ph121c_lxvm/tensor/train.py in contract_bond(self, bnd)
+     86         assert ((right_pos - left_pos) == 1), \
+     87             'bond should connect adjacent sites.'
+---&gt; 88         self[left_pos].contract(self[right_pos])
+     89         # If contracting the center, move it
+     90         if (self.center == self[right_pos]):
+
+
+~/Documents/repos/ph121c/ph121c_lxvm/ph121c_lxvm/tensor/site.py in contract(self, other)
+    406         other.permute(lowered + bonds, 0)
+    407         self.mat = np.kron(np.eye(lowered.dim), self.mat) \
+--&gt; 408             @ np.kron(other.mat, np.eye(raised.dim))
+    409         self.ind[0] = lowered + self.ind[0]
+    410         self.ind[1] = other.ind[1] + raised
+
+
+&lt;__array_function__ internals&gt; in kron(*args, **kwargs)
+
+
+~/.conda/envs/ph121c/lib/python3.7/site-packages/numpy/lib/shape_base.py in kron(a, b)
+   1152             bs = (1,)*(nda-ndb) + bs
+   1153             nd = nda
+-&gt; 1154     result = outer(a, b).reshape(as_+bs)
+   1155     axis = nd-1
+   1156     for _ in range(nd):
+
+
+&lt;__array_function__ internals&gt; in outer(*args, **kwargs)
+
+
+~/.conda/envs/ph121c/lib/python3.7/site-packages/numpy/core/numeric.py in outer(a, b, out)
+    940     a = asarray(a)
+    941     b = asarray(b)
+--&gt; 942     return multiply(a.ravel()[:, newaxis], b.ravel()[newaxis, :], out)
+    943 
+    944 
+
+
+MemoryError: Unable to allocate 32.0 GiB for an array with shape (4096, 1048576) and data type float64
+</code></pre>
+<p>Darn, there&rsquo;s an issue in my code. What probably happened is that a bond
+got lost somewhere and contractions led to Kronecker products instead
+of contractions. I&rsquo;d rather move onto the rest of the assignment than
+rerun the 4 minute simultation and troubleshoot what is going on.</p>
+<h2 id="extra-reading">Extra reading</h2>
+<p>You might also be interested in reading</p>
+<ul>
+<li><a href="https://link.springer.com/article/10.1007/BF02650179">Feynman on simulation</a></li>
+<li><a href="https://arxiv.org/abs/2103.12783">Quantum computation by a Caltech sophomore</a></li>
+</ul>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">
+</code></pre></div>
+
+
+      
+    </article>
+    
+  </div>
+
+        </div><footer>
+  <div class="container">
+    <p class="credits copyright">
+      <p class="credits theme-by">
+        <a href="https://lxvm.github.io/ph121c/">root</a>
+      </p>
+    </p>
+  </div>
+</footer>
+</body>
+</html>

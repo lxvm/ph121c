@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en"><meta charset="utf-8" />
+
+  <title>Assignment 4: Part 3 - Lorenzo X. Van Muñoz</title>
+
+
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="stylesheet" href="https://lxvm.github.io/ph121c/css/latex.css" />
+<link rel="stylesheet" href="https://lxvm.github.io/ph121c/css/main.css" />
+<script>
+  MathJax = {
+    tex: {
+      inlineMath: [['$', '$'], ["\\(", "\\)"]]
+    }
+  };
+</script>
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<meta name="generator" content="Hugo 0.80.0" /><body>
+
+
+<header>
+  <div class="intro-header">
+    <div class="container">
+      <div class="asg4-heading">
+        
+          <h1>Assignment 4: Part 3</h1>
+        
+      </div>
+    </div>
+  </div>
+</header>
+
+        <div id="content">
+  <div class="container" role="main">
+    <article class="article" class="blog-post">
+      <div class="postmeta">
+        <span class="meta-post">
+  
+</span>
+
+      </div>
+      <br>
+      <h1 id="quench-dynamics-in-the-mbl-phase">Quench dynamics in the MBL phase</h1>
+<p>$\require{physics}$</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">from</span> copy <span style="color:#f92672">import</span> deepcopy
+
+<span style="color:#f92672">import</span> numpy <span style="color:#f92672">as</span> np
+<span style="color:#f92672">import</span> pandas <span style="color:#f92672">as</span> pd
+<span style="color:#f92672">from</span> scipy.linalg <span style="color:#f92672">import</span> expm
+<span style="color:#f92672">import</span> matplotlib.pyplot <span style="color:#f92672">as</span> plt
+<span style="color:#f92672">%</span>matplotlib inline
+
+<span style="color:#f92672">from</span> ph121c_lxvm <span style="color:#f92672">import</span> tensor, measure
+</code></pre></div><h2 id="summary">Summary</h2>
+<p>We will again evolve this quantum state
+\begin{align}
+\ket{\psi(t=0)} = \ket{\xi} \otimes \cdots \otimes \ket{\xi}
+,
+\end{align}
+where $\ket{\xi} = \frac{1}{2} \left( \ket{\uparrow} - \sqrt{3} \ket{\downarrow} \right)$.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#75715e"># Build initial state</span>
+down <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>array([<span style="color:#ae81ff">1.</span>, <span style="color:#ae81ff">0.</span>])<span style="color:#f92672">.</span>reshape(<span style="color:#ae81ff">2</span>, <span style="color:#ae81ff">1</span>)
+up   <span style="color:#f92672">=</span> down[::<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>]<span style="color:#f92672">.</span>reshape((<span style="color:#ae81ff">2</span>, <span style="color:#ae81ff">1</span>))
+<span style="color:#960050;background-color:#1e0010">ξ</span> <span style="color:#f92672">=</span> (up <span style="color:#f92672">-</span> np<span style="color:#f92672">.</span>sqrt(<span style="color:#ae81ff">3</span>) <span style="color:#f92672">*</span> down) <span style="color:#f92672">/</span> <span style="color:#ae81ff">2</span>
+
+<span style="color:#66d9ef">def</span> <span style="color:#a6e22e">make_wave</span> (L, d):
+    <span style="color:#e6db74">&#34;&#34;&#34;Create the inital wavefunctions.&#34;&#34;&#34;</span>
+    <span style="color:#960050;background-color:#1e0010">ψ</span> <span style="color:#f92672">=</span> tensor<span style="color:#f92672">.</span>mps(L<span style="color:#f92672">=</span>L, d<span style="color:#f92672">=</span>d)
+    <span style="color:#960050;background-color:#1e0010">ψ</span><span style="color:#f92672">.</span>from_arr([ <span style="color:#960050;background-color:#1e0010">ξ</span> <span style="color:#66d9ef">for</span> _ <span style="color:#f92672">in</span> range(L) ], center<span style="color:#f92672">=-</span><span style="color:#ae81ff">1</span>)  
+    <span style="color:#66d9ef">return</span> <span style="color:#960050;background-color:#1e0010">ψ</span>
+</code></pre></div><p>Measuring the half-system entanglement entropy:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">eentropy</span> (tren, i):
+    <span style="color:#e6db74">&#34;&#34;&#34;Calculate the entanglement entropy at a cut between quanta i, i+1.&#34;&#34;&#34;</span>
+    tren<span style="color:#f92672">.</span>groupby_quanta_tag([i])
+    u, s, vh <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>linalg<span style="color:#f92672">.</span>svd(tren<span style="color:#f92672">.</span>center<span style="color:#f92672">.</span>mat)
+    <span style="color:#66d9ef">return</span> measure<span style="color:#f92672">.</span>entropy<span style="color:#f92672">.</span>entanglement(s)
+</code></pre></div><p>We will use the following TFIM Hamiltonian with open boundary conditions
+parametrized by random coefficients $h_i^x, h_i^z \sim U(-W, W)$:
+$$
+H =
+-\sum_{i=1}^{L-1} \sigma_i^z \sigma_{i+1}^z
+-\sum_{i=1}^L h_i^x \sigma_i^x
+-\sum_{i=1}^L h_i^z \sigma_i^z
+.
+$$</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">sx <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>array([[<span style="color:#ae81ff">0</span>, <span style="color:#ae81ff">1</span>], [<span style="color:#ae81ff">1</span>, <span style="color:#ae81ff">0</span>]])
+sy <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>array([[<span style="color:#ae81ff">0</span>, <span style="color:#f92672">-</span><span style="color:#ae81ff">1j</span>], [<span style="color:#ae81ff">1j</span>, <span style="color:#ae81ff">0</span>]])
+sz <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>diag([<span style="color:#ae81ff">1</span>, <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>])
+
+<span style="color:#75715e"># Build pieces of Hamiltonian in gate representation</span>
+<span style="color:#66d9ef">def</span> <span style="color:#a6e22e">build_pieces_of_H</span> (L, d, W, seed):
+    <span style="color:#e6db74">&#34;&#34;&#34;Build the field, odd, and even term Hamiltonians and also their union.&#34;&#34;&#34;</span>
+    rng <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>random<span style="color:#f92672">.</span>default_rng(seed<span style="color:#f92672">=</span>seed)
+    H_field <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>empty(L, dtype<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;O&#39;</span>)
+    <span style="color:#66d9ef">for</span> i <span style="color:#f92672">in</span> range(H_field<span style="color:#f92672">.</span>size):
+        H_field[i] <span style="color:#f92672">=</span> tensor<span style="color:#f92672">.</span>mpo(L<span style="color:#f92672">=</span>L, d<span style="color:#f92672">=</span>d)
+        H_field[i]<span style="color:#f92672">.</span>set_local_oper(
+            <span style="color:#f92672">-</span>(rng<span style="color:#f92672">.</span>uniform(<span style="color:#f92672">-</span>W, W) <span style="color:#f92672">*</span> sx <span style="color:#f92672">+</span> rng<span style="color:#f92672">.</span>uniform(<span style="color:#f92672">-</span>W, W) <span style="color:#f92672">*</span> sz), i <span style="color:#f92672">+</span> <span style="color:#ae81ff">1</span>
+        )
+    H_odd <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>empty(L<span style="color:#f92672">//</span><span style="color:#ae81ff">2</span>, dtype<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;O&#39;</span>)
+    <span style="color:#66d9ef">for</span> i <span style="color:#f92672">in</span> range(H_odd<span style="color:#f92672">.</span>size):
+        H_odd[i] <span style="color:#f92672">=</span> tensor<span style="color:#f92672">.</span>mpo(L<span style="color:#f92672">=</span>L, d<span style="color:#f92672">=</span>d)
+        H_odd[i]<span style="color:#f92672">.</span>set_local_oper(<span style="color:#f92672">-</span>sz, <span style="color:#ae81ff">2</span><span style="color:#f92672">*</span>i <span style="color:#f92672">+</span> <span style="color:#ae81ff">1</span>)
+        H_odd[i]<span style="color:#f92672">.</span>set_local_oper(sz, <span style="color:#ae81ff">2</span><span style="color:#f92672">*</span>i <span style="color:#f92672">+</span> <span style="color:#ae81ff">1</span> <span style="color:#f92672">+</span> <span style="color:#ae81ff">1</span>)
+    H_even <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>empty(L<span style="color:#f92672">//</span><span style="color:#ae81ff">2</span> <span style="color:#f92672">-</span> <span style="color:#ae81ff">1</span> <span style="color:#f92672">+</span> L<span style="color:#f92672">%</span><span style="color:#ae81ff">2</span>, dtype<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;O&#39;</span>)
+    <span style="color:#66d9ef">for</span> i <span style="color:#f92672">in</span> range(H_even<span style="color:#f92672">.</span>size):
+        H_even[i] <span style="color:#f92672">=</span> tensor<span style="color:#f92672">.</span>mpo(L<span style="color:#f92672">=</span>L, d<span style="color:#f92672">=</span>d)
+        H_even[i]<span style="color:#f92672">.</span>set_local_oper(<span style="color:#f92672">-</span>sz, <span style="color:#ae81ff">2</span><span style="color:#f92672">*</span>(i <span style="color:#f92672">+</span> <span style="color:#ae81ff">1</span>))
+        H_even[i]<span style="color:#f92672">.</span>set_local_oper(sz, <span style="color:#ae81ff">2</span><span style="color:#f92672">*</span>(i <span style="color:#f92672">+</span> <span style="color:#ae81ff">1</span>) <span style="color:#f92672">+</span> <span style="color:#ae81ff">1</span>)
+    H_full <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>array([<span style="color:#f92672">*</span>H_field, <span style="color:#f92672">*</span>H_odd, <span style="color:#f92672">*</span>H_even], dtype<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;O&#39;</span>)
+    <span style="color:#66d9ef">return</span> (H_field, H_odd, H_even, H_full)
+
+
+<span style="color:#75715e"># Construct propagators</span>
+<span style="color:#66d9ef">def</span> <span style="color:#a6e22e">build_propagators</span> (L, d, <span style="color:#960050;background-color:#1e0010">δτ</span>, H_field, H_odd, H_even):
+    <span style="color:#e6db74">&#34;&#34;&#34;Exponentiate each non-commuting piece of the Hamiltonian&#34;&#34;&#34;</span>
+    U_field <span style="color:#f92672">=</span> tensor<span style="color:#f92672">.</span>mpo(L<span style="color:#f92672">=</span>L, d<span style="color:#f92672">=</span>d)
+    <span style="color:#66d9ef">for</span> i, e <span style="color:#f92672">in</span> enumerate(H_field):
+        U_field<span style="color:#f92672">.</span>set_local_oper(expm(<span style="color:#f92672">-</span> <span style="color:#ae81ff">1.j</span> <span style="color:#f92672">*</span> <span style="color:#960050;background-color:#1e0010">δτ</span> <span style="color:#f92672">*</span> e[<span style="color:#ae81ff">0</span>]<span style="color:#f92672">.</span>mat), i<span style="color:#f92672">+</span><span style="color:#ae81ff">1</span>)
+    U_odd <span style="color:#f92672">=</span> tensor<span style="color:#f92672">.</span>mpo(L<span style="color:#f92672">=</span>L, d<span style="color:#f92672">=</span>d)
+    <span style="color:#66d9ef">for</span> i, e <span style="color:#f92672">in</span> enumerate(H_odd):
+        U_odd<span style="color:#f92672">.</span>set_local_oper(
+            expm(<span style="color:#f92672">-</span> <span style="color:#ae81ff">1.j</span> <span style="color:#f92672">*</span> <span style="color:#960050;background-color:#1e0010">δτ</span> <span style="color:#f92672">*</span> np<span style="color:#f92672">.</span>kron(e[<span style="color:#ae81ff">1</span>]<span style="color:#f92672">.</span>mat, e[<span style="color:#ae81ff">0</span>]<span style="color:#f92672">.</span>mat)),
+            <span style="color:#ae81ff">2</span> <span style="color:#f92672">*</span> i <span style="color:#f92672">+</span> <span style="color:#ae81ff">1</span>
+        )
+    U_even <span style="color:#f92672">=</span> tensor<span style="color:#f92672">.</span>mpo(L<span style="color:#f92672">=</span>L, d<span style="color:#f92672">=</span>d)
+    <span style="color:#66d9ef">for</span> i, e <span style="color:#f92672">in</span> enumerate(H_even):
+        U_even<span style="color:#f92672">.</span>set_local_oper(
+            expm(<span style="color:#f92672">-</span> <span style="color:#ae81ff">1.j</span> <span style="color:#f92672">*</span> <span style="color:#960050;background-color:#1e0010">δτ</span> <span style="color:#f92672">*</span> np<span style="color:#f92672">.</span>kron(e[<span style="color:#ae81ff">1</span>]<span style="color:#f92672">.</span>mat, e[<span style="color:#ae81ff">0</span>]<span style="color:#f92672">.</span>mat)),
+            <span style="color:#ae81ff">2</span> <span style="color:#f92672">*</span> (i <span style="color:#f92672">+</span> <span style="color:#ae81ff">1</span>)
+        )
+    <span style="color:#66d9ef">return</span> (U_field, U_odd, U_even)
+
+
+</code></pre></div><div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">make_observables</span> (L, d):
+    <span style="color:#e6db74">&#34;&#34;&#34;Create the observable operators of interest.&#34;&#34;&#34;</span>
+    s1x <span style="color:#f92672">=</span> tensor<span style="color:#f92672">.</span>mpo(L<span style="color:#f92672">=</span>L, d<span style="color:#f92672">=</span>d)
+    s1x<span style="color:#f92672">.</span>set_local_oper(sx, <span style="color:#ae81ff">1</span>)
+    sL2x <span style="color:#f92672">=</span> tensor<span style="color:#f92672">.</span>mpo(L<span style="color:#f92672">=</span>L, d<span style="color:#f92672">=</span>d)
+    sL2x<span style="color:#f92672">.</span>set_local_oper(sx, L<span style="color:#f92672">//</span><span style="color:#ae81ff">2</span>)
+    s1z <span style="color:#f92672">=</span> tensor<span style="color:#f92672">.</span>mpo(L<span style="color:#f92672">=</span>L, d<span style="color:#f92672">=</span>d)
+    s1z<span style="color:#f92672">.</span>set_local_oper(sz, <span style="color:#ae81ff">1</span>)
+    sL2z <span style="color:#f92672">=</span> tensor<span style="color:#f92672">.</span>mpo(L<span style="color:#f92672">=</span>L, d<span style="color:#f92672">=</span>d)
+    sL2z<span style="color:#f92672">.</span>set_local_oper(sz, L<span style="color:#f92672">//</span><span style="color:#ae81ff">2</span>)
+    <span style="color:#66d9ef">return</span> (s1x, sL2x, s1z, sL2z)
+</code></pre></div><h2 id="evolution">Evolution</h2>
+<p>We will evolve the state in real time and measure the entanglement entropy
+at each time step.
+The goal is to observe the MBL physics of this Hamiltonian through the
+logarithmic growth of the entanglement entropy.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">W <span style="color:#f92672">=</span> <span style="color:#ae81ff">3</span>
+L <span style="color:#f92672">=</span> <span style="color:#ae81ff">24</span>
+d <span style="color:#f92672">=</span> <span style="color:#ae81ff">2</span>
+<span style="color:#960050;background-color:#1e0010">δτ</span> <span style="color:#f92672">=</span> <span style="color:#ae81ff">0.1</span>
+N <span style="color:#f92672">=</span> <span style="color:#ae81ff">20</span>
+seeds <span style="color:#f92672">=</span> [<span style="color:#ae81ff">935</span>, <span style="color:#ae81ff">483</span>, <span style="color:#ae81ff">102</span>, <span style="color:#ae81ff">567</span>, <span style="color:#ae81ff">304</span>]
+</code></pre></div><div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">%%</span>time
+chi <span style="color:#f92672">=</span> <span style="color:#ae81ff">16</span>
+Nstp <span style="color:#f92672">=</span> <span style="color:#ae81ff">20</span>
+<span style="color:#960050;background-color:#1e0010">ψ</span> <span style="color:#f92672">=</span> make_wave(L<span style="color:#f92672">=</span>L, d<span style="color:#f92672">=</span>d)
+<span style="color:#960050;background-color:#1e0010">ψ</span>_results <span style="color:#f92672">=</span> dict(t<span style="color:#f92672">=</span>[], S<span style="color:#f92672">=</span>[], s1x<span style="color:#f92672">=</span>[], sL2x<span style="color:#f92672">=</span>[], s1z<span style="color:#f92672">=</span>[], sL2z<span style="color:#f92672">=</span>[], seed<span style="color:#f92672">=</span>[])
+<span style="color:#66d9ef">for</span> seed <span style="color:#f92672">in</span> seeds:
+    H_field, H_odd, H_even, H_full <span style="color:#f92672">=</span> build_pieces_of_H(
+        L<span style="color:#f92672">=</span>L, d<span style="color:#f92672">=</span>d, W<span style="color:#f92672">=</span>W, seed<span style="color:#f92672">=</span>seed
+    )
+    U_field, U_odd, U_even <span style="color:#f92672">=</span> build_propagators(
+        L<span style="color:#f92672">=</span>L, d<span style="color:#f92672">=</span>d, <span style="color:#960050;background-color:#1e0010">δτ</span><span style="color:#f92672">=</span><span style="color:#960050;background-color:#1e0010">δτ</span>, H_field<span style="color:#f92672">=</span>H_field, H_odd<span style="color:#f92672">=</span>H_odd, H_even<span style="color:#f92672">=</span>H_even
+    )
+    wave <span style="color:#f92672">=</span> deepcopy(<span style="color:#960050;background-color:#1e0010">ψ</span>)
+    s1x, sL2x, s1z, sL2z <span style="color:#f92672">=</span> make_observables(L<span style="color:#f92672">=</span>L, d<span style="color:#f92672">=</span>d)
+    <span style="color:#960050;background-color:#1e0010">ψ</span>_results[<span style="color:#e6db74">&#39;t&#39;</span>]<span style="color:#f92672">.</span>append(<span style="color:#ae81ff">0</span>)
+    <span style="color:#960050;background-color:#1e0010">ψ</span>_results[<span style="color:#e6db74">&#39;seed&#39;</span>]<span style="color:#f92672">.</span>append(seed)
+    <span style="color:#960050;background-color:#1e0010">ψ</span>_results[<span style="color:#e6db74">&#39;S&#39;</span>]<span style="color:#f92672">.</span>append(eentropy(<span style="color:#960050;background-color:#1e0010">ψ</span>, L<span style="color:#f92672">//</span><span style="color:#ae81ff">2</span>))
+    <span style="color:#960050;background-color:#1e0010">ψ</span>_results[<span style="color:#e6db74">&#39;s1x&#39;</span>]<span style="color:#f92672">.</span>append(s1x<span style="color:#f92672">.</span>expval(<span style="color:#960050;background-color:#1e0010">ψ</span>))
+    <span style="color:#960050;background-color:#1e0010">ψ</span>_results[<span style="color:#e6db74">&#39;sL2x&#39;</span>]<span style="color:#f92672">.</span>append(sL2x<span style="color:#f92672">.</span>expval(<span style="color:#960050;background-color:#1e0010">ψ</span>))
+    <span style="color:#960050;background-color:#1e0010">ψ</span>_results[<span style="color:#e6db74">&#39;s1z&#39;</span>]<span style="color:#f92672">.</span>append(s1z<span style="color:#f92672">.</span>expval(<span style="color:#960050;background-color:#1e0010">ψ</span>))
+    <span style="color:#960050;background-color:#1e0010">ψ</span>_results[<span style="color:#e6db74">&#39;sL2z&#39;</span>]<span style="color:#f92672">.</span>append(sL2z<span style="color:#f92672">.</span>expval(<span style="color:#960050;background-color:#1e0010">ψ</span>))
+    <span style="color:#75715e"># TEBD pattern</span>
+    <span style="color:#66d9ef">for</span> i <span style="color:#f92672">in</span> range(N):
+        <span style="color:#66d9ef">for</span> e <span style="color:#f92672">in</span> [U_field, U_even, U_odd]:
+            e<span style="color:#f92672">.</span>oper(wave, inplace<span style="color:#f92672">=</span>True)
+        wave<span style="color:#f92672">.</span>trim_bonds(chi)
+        wave<span style="color:#f92672">.</span>normalize()
+        <span style="color:#75715e"># measure entropy</span>
+        <span style="color:#960050;background-color:#1e0010">ψ</span>_results[<span style="color:#e6db74">&#39;t&#39;</span>]<span style="color:#f92672">.</span>append(<span style="color:#960050;background-color:#1e0010">δτ</span> <span style="color:#f92672">*</span> (i <span style="color:#f92672">+</span> <span style="color:#ae81ff">1</span>))
+        <span style="color:#960050;background-color:#1e0010">ψ</span>_results[<span style="color:#e6db74">&#39;seed&#39;</span>]<span style="color:#f92672">.</span>append(seed)
+        <span style="color:#960050;background-color:#1e0010">ψ</span>_results[<span style="color:#e6db74">&#39;S&#39;</span>]<span style="color:#f92672">.</span>append(eentropy(<span style="color:#960050;background-color:#1e0010">ψ</span>, L<span style="color:#f92672">//</span><span style="color:#ae81ff">2</span>))
+        <span style="color:#960050;background-color:#1e0010">ψ</span>_results[<span style="color:#e6db74">&#39;s1x&#39;</span>]<span style="color:#f92672">.</span>append(s1x<span style="color:#f92672">.</span>expval(<span style="color:#960050;background-color:#1e0010">ψ</span>))
+        <span style="color:#960050;background-color:#1e0010">ψ</span>_results[<span style="color:#e6db74">&#39;sL2x&#39;</span>]<span style="color:#f92672">.</span>append(sL2x<span style="color:#f92672">.</span>expval(<span style="color:#960050;background-color:#1e0010">ψ</span>))
+        <span style="color:#960050;background-color:#1e0010">ψ</span>_results[<span style="color:#e6db74">&#39;s1z&#39;</span>]<span style="color:#f92672">.</span>append(s1z<span style="color:#f92672">.</span>expval(<span style="color:#960050;background-color:#1e0010">ψ</span>))
+        <span style="color:#960050;background-color:#1e0010">ψ</span>_results[<span style="color:#e6db74">&#39;sL2z&#39;</span>]<span style="color:#f92672">.</span>append(sL2z<span style="color:#f92672">.</span>expval(<span style="color:#960050;background-color:#1e0010">ψ</span>))
+</code></pre></div><pre><code>CPU times: user 34min 22s, sys: 24.4 s, total: 34min 46s
+Wall time: 6min 15s
+</code></pre>
+<h2 id="plots">Plots</h2>
+<p>Here we will plot the entanglement entropy as a function of time for all
+the disorder realizations.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">df <span style="color:#f92672">=</span> pd<span style="color:#f92672">.</span>DataFrame(<span style="color:#960050;background-color:#1e0010">ψ</span>_results)
+</code></pre></div><div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">fig, ax <span style="color:#f92672">=</span> plt<span style="color:#f92672">.</span>subplots()
+<span style="color:#75715e"># grp = df.groupby([&#39;L&#39;, &#39;t&#39;]).mean().reset_index()</span>
+<span style="color:#66d9ef">for</span> k, seed <span style="color:#f92672">in</span> enumerate(seeds):
+    which <span style="color:#f92672">=</span> (df<span style="color:#f92672">.</span>seed <span style="color:#f92672">==</span> seed)
+    ax<span style="color:#f92672">.</span>plot(
+        df<span style="color:#f92672">.</span>t[which]<span style="color:#f92672">.</span>values, df<span style="color:#f92672">.</span>S[which]<span style="color:#f92672">.</span>values,
+        label<span style="color:#f92672">=</span>f<span style="color:#e6db74">&#39;$</span><span style="color:#ae81ff">\\</span><span style="color:#e6db74">chi={chi}$&#39;</span>
+    )
+grp <span style="color:#f92672">=</span> df<span style="color:#f92672">.</span>groupby([<span style="color:#e6db74">&#39;t&#39;</span>])<span style="color:#f92672">.</span>mean()<span style="color:#f92672">.</span>reset_index()
+<span style="color:#75715e"># ax.plot(np.arange(N) * δτ, np.mean(df.S))</span>
+ax<span style="color:#f92672">.</span>set_title(<span style="color:#e6db74">&#39;$S_{L/2}$&#39;</span>)
+ax<span style="color:#f92672">.</span>set_xlabel(<span style="color:#e6db74">&#39;time&#39;</span>)
+ax<span style="color:#f92672">.</span>set_ylabel(<span style="color:#e6db74">&#39;$S_{L/2}$&#39;</span>)
+ax<span style="color:#f92672">.</span>legend()
+fig<span style="color:#f92672">.</span>tight_layout()
+plt<span style="color:#f92672">.</span>show()
+</code></pre></div><p><img src="output_15_0.png" alt="png"></p>
+<p>Compared to the previous Hamiltonian, the entropy here does not spike, but
+steadily increases, which seems to be the signature of the MBL phase.</p>
+<p>I have plotted 5 disorder realizations and believe that it&rsquo;s not too
+hard to imagine the average.</p>
+<p>I also got some data of the observables, but I am about to fall asleep,
+so instead here are the values averaged over the disorder realizations:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">grp
+</code></pre></div><div>
+<style scoped>
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+<pre><code>.dataframe tbody tr th {
+    vertical-align: top;
+}
+
+.dataframe thead th {
+    text-align: right;
+}
+</code></pre>
+<p></style></p>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>t</th>
+      <th>S</th>
+      <th>s1x</th>
+      <th>sL2x</th>
+      <th>s1z</th>
+      <th>sL2z</th>
+      <th>seed</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>0</th>
+      <td>0.0</td>
+      <td>1.310063e-14</td>
+      <td>-0.866025</td>
+      <td>-0.866025</td>
+      <td>0.5</td>
+      <td>0.5</td>
+      <td>478.2</td>
+    </tr>
+    <tr>
+      <th>1</th>
+      <td>0.1</td>
+      <td>1.465494e-14</td>
+      <td>-0.866025</td>
+      <td>-0.866025</td>
+      <td>0.5</td>
+      <td>0.5</td>
+      <td>478.2</td>
+    </tr>
+    <tr>
+      <th>2</th>
+      <td>0.2</td>
+      <td>1.527667e-14</td>
+      <td>-0.866025</td>
+      <td>-0.866025</td>
+      <td>0.5</td>
+      <td>0.5</td>
+      <td>478.2</td>
+    </tr>
+    <tr>
+      <th>3</th>
+      <td>0.3</td>
+      <td>1.567635e-14</td>
+      <td>-0.866025</td>
+      <td>-0.866025</td>
+      <td>0.5</td>
+      <td>0.5</td>
+      <td>478.2</td>
+    </tr>
+    <tr>
+      <th>4</th>
+      <td>0.4</td>
+      <td>1.691980e-14</td>
+      <td>-0.866025</td>
+      <td>-0.866025</td>
+      <td>0.5</td>
+      <td>0.5</td>
+      <td>478.2</td>
+    </tr>
+    <tr>
+      <th>5</th>
+      <td>0.5</td>
+      <td>1.612044e-14</td>
+      <td>-0.866025</td>
+      <td>-0.866025</td>
+      <td>0.5</td>
+      <td>0.5</td>
+      <td>478.2</td>
+    </tr>
+    <tr>
+      <th>6</th>
+      <td>0.6</td>
+      <td>1.620926e-14</td>
+      <td>-0.866025</td>
+      <td>-0.866025</td>
+      <td>0.5</td>
+      <td>0.5</td>
+      <td>478.2</td>
+    </tr>
+    <tr>
+      <th>7</th>
+      <td>0.7</td>
+      <td>1.518785e-14</td>
+      <td>-0.866025</td>
+      <td>-0.866025</td>
+      <td>0.5</td>
+      <td>0.5</td>
+      <td>478.2</td>
+    </tr>
+    <tr>
+      <th>8</th>
+      <td>0.8</td>
+      <td>1.580958e-14</td>
+      <td>-0.866025</td>
+      <td>-0.866025</td>
+      <td>0.5</td>
+      <td>0.5</td>
+      <td>478.2</td>
+    </tr>
+    <tr>
+      <th>9</th>
+      <td>0.9</td>
+      <td>1.603162e-14</td>
+      <td>-0.866025</td>
+      <td>-0.866025</td>
+      <td>0.5</td>
+      <td>0.5</td>
+      <td>478.2</td>
+    </tr>
+    <tr>
+      <th>10</th>
+      <td>1.0</td>
+      <td>1.620926e-14</td>
+      <td>-0.866025</td>
+      <td>-0.866025</td>
+      <td>0.5</td>
+      <td>0.5</td>
+      <td>478.2</td>
+    </tr>
+    <tr>
+      <th>11</th>
+      <td>1.1</td>
+      <td>1.709743e-14</td>
+      <td>-0.866025</td>
+      <td>-0.866025</td>
+      <td>0.5</td>
+      <td>0.5</td>
+      <td>478.2</td>
+    </tr>
+    <tr>
+      <th>12</th>
+      <td>1.2</td>
+      <td>1.714184e-14</td>
+      <td>-0.866025</td>
+      <td>-0.866025</td>
+      <td>0.5</td>
+      <td>0.5</td>
+      <td>478.2</td>
+    </tr>
+    <tr>
+      <th>13</th>
+      <td>1.3</td>
+      <td>1.629807e-14</td>
+      <td>-0.866025</td>
+      <td>-0.866025</td>
+      <td>0.5</td>
+      <td>0.5</td>
+      <td>478.2</td>
+    </tr>
+    <tr>
+      <th>14</th>
+      <td>1.4</td>
+      <td>1.700862e-14</td>
+      <td>-0.866025</td>
+      <td>-0.866025</td>
+      <td>0.5</td>
+      <td>0.5</td>
+      <td>478.2</td>
+    </tr>
+    <tr>
+      <th>15</th>
+      <td>1.5</td>
+      <td>1.776357e-14</td>
+      <td>-0.866025</td>
+      <td>-0.866025</td>
+      <td>0.5</td>
+      <td>0.5</td>
+      <td>478.2</td>
+    </tr>
+    <tr>
+      <th>16</th>
+      <td>1.6</td>
+      <td>1.718625e-14</td>
+      <td>-0.866025</td>
+      <td>-0.866025</td>
+      <td>0.5</td>
+      <td>0.5</td>
+      <td>478.2</td>
+    </tr>
+    <tr>
+      <th>17</th>
+      <td>1.7</td>
+      <td>1.714184e-14</td>
+      <td>-0.866025</td>
+      <td>-0.866025</td>
+      <td>0.5</td>
+      <td>0.5</td>
+      <td>478.2</td>
+    </tr>
+    <tr>
+      <th>18</th>
+      <td>1.8</td>
+      <td>1.665335e-14</td>
+      <td>-0.866025</td>
+      <td>-0.866025</td>
+      <td>0.5</td>
+      <td>0.5</td>
+      <td>478.2</td>
+    </tr>
+    <tr>
+      <th>19</th>
+      <td>1.9</td>
+      <td>1.665335e-14</td>
+      <td>-0.866025</td>
+      <td>-0.866025</td>
+      <td>0.5</td>
+      <td>0.5</td>
+      <td>478.2</td>
+    </tr>
+    <tr>
+      <th>20</th>
+      <td>2.0</td>
+      <td>1.749711e-14</td>
+      <td>-0.866025</td>
+      <td>-0.866025</td>
+      <td>0.5</td>
+      <td>0.5</td>
+      <td>478.2</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">
+</code></pre></div>
+
+
+      
+    </article>
+    
+  </div>
+
+        </div><footer>
+  <div class="container">
+    <p class="credits copyright">
+      <p class="credits theme-by">
+        <a href="https://lxvm.github.io/ph121c/">root</a>
+      </p>
+    </p>
+  </div>
+</footer>
+</body>
+</html>
