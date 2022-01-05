@@ -1,0 +1,12 @@
+name = "LoloTheme"
+license = "MIT"
+licenselink = ""
+description = "Some hugo theme"
+homepage = "https://www.github.com/lxvm"
+tags = ["something"]
+features = ["something"]
+min_version = "0.0.0"
+
+[author]
+  name = "lxvm"
+  homepage = "https://www.its.caltech.edu/~lvanmuno"

@@ -1,0 +1,19 @@
+{{ $.Scratch.Set "title" .Title }}
+{{ $title := $.Scratch.Get "title" }}
+{{ if $title }}
+<header>
+  <div class="intro-header">
+    <div class="container">
+      <div class="{{ .Type }}-heading">
+        {{ if eq .Type "list" }}
+          <h1>{{ if .Data.Singular }}#{{ end }}{{ .Title }}</h1>
+        {{ else }}
+          <h1>{{ with $title }}{{.}}{{ else }}<br/>{{ end }}</h1>
+        {{ end }}
+      </div>
+    </div>
+  </div>
+</header>
+{{ else }}
+<div class="intro-header"></div>
+{{ end }}
