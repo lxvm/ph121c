@@ -1,0 +1,13 @@
+baseURL = "https://lxvm.github.io/ph121c/"
+theme = "mytheme"
+languageCode = "en"
+defaultContentLanguage = "en"
+title = "Lorenzo X. Van Muñoz"
+
+[taxonomies]
+category = "categories"
+tag = "tags"
+series = "series"
+
+[markup.goldmark.renderer]
+  unsafe = true
