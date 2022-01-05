@@ -3,6 +3,7 @@ theme = "mytheme"
 languageCode = "en"
 defaultContentLanguage = "en"
 title = "Lorenzo X. Van Muñoz"
+publishDir="docs"
 
 [taxonomies]
 category = "categories"
